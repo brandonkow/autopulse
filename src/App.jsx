@@ -77,9 +77,21 @@ const aFetch = async (url, opts={}) => {
   if (!res.ok) { const t=await res.text(); throw new Error(`${res.status}: ${t.slice(0,140)}`); }
   return res.json();
 };
-const aRun    = (tok,act,inp) => aFetch(`${BASE}/acts/${encodeURIComponent(act)}/runs?token=${tok}`,{method:'POST',body:JSON.stringify(inp)});
-const aStatus = (tok,id)      => aFetch(`${BASE}/actor-runs/${id}?token=${tok}`);
-const aData   = (tok,ds,lim)  => aFetch(`${BASE}/datasets/${ds}/items?token=${tok}&limit=${lim}&clean=true`);
+const aRun           = (tok,act,inp)  => aFetch(`${BASE}/acts/${encodeURIComponent(act)}/runs?token=${tok}`,{method:'POST',body:JSON.stringify(inp)});
+const aStatus        = (tok,id)       => aFetch(`${BASE}/actor-runs/${id}?token=${tok}`);
+const aData          = (tok,ds,lim)   => aFetch(`${BASE}/datasets/${ds}/items?token=${tok}&limit=${lim}&clean=true`);
+const aLatestRun     = (tok,act)      => aFetch(`${BASE}/acts/${encodeURIComponent(act)}/runs?token=${tok}&status=SUCCEEDED&limit=1`);
+const aListSchedules = (tok)          => aFetch(`${BASE}/schedules?token=${tok}&limit=100`);
+const aCreateSchedule= (tok,body)     => aFetch(`${BASE}/schedules?token=${tok}`,{method:'POST',body:JSON.stringify(body)});
+const aUpdateSchedule= (tok,id,body)  => aFetch(`${BASE}/schedules/${id}?token=${tok}`,{method:'PUT',body:JSON.stringify(body)});
+
+const CFG = {
+  token:    import.meta.env.VITE_APIFY_TOKEN     || '',
+  actorId:  import.meta.env.VITE_APIFY_ACTOR_ID  || 'apify/mudah-search-scraper',
+  searchUrl:import.meta.env.VITE_APIFY_SEARCH_URL|| 'https://www.mudah.my/malaysia/cars-for-sale',
+  maxItems: Number(import.meta.env.VITE_APIFY_MAX_ITEMS) || 500,
+  cron:     import.meta.env.VITE_APIFY_SCHEDULE_CRON || '0 */6 * * *',
+};
 
 const normalize = items => items.map((it,i) => {
   const title = it.title||it.name||it.heading||it.ad_title||'';
@@ -982,172 +994,222 @@ const Inventory = ({ listings }) => {
 };
 
 // ── PIPELINE ──────────────────────────────────────────────────────────────────
-const PipelineTab = ({ apify, setApify, onLiveData }) => {
-  const [mode, setMode]   = useState('run');
-  const [rs, setRs]       = useState({ status:'idle', runId:null, dsId:null, error:null, pct:0 });
-  const [log, setLog]     = useState([]);
-  const pollerRef         = useRef(null);
+const PipelineTab = ({ onLiveData }) => {
+  const [phase, setPhase]       = useState('idle'); // idle|running|fetching|done|error
+  const [pct, setPct]           = useState(0);
+  const [error, setError]       = useState(null);
+  const [runId, setRunId]       = useState(null);
+  const [schedule, setSchedule] = useState(null);
+  const [lastRun, setLastRun]   = useState(null);
+  const [log, setLog]   = useState([]);
+  const pollerRef       = useRef(null);
   const addLog = useCallback((msg, type='info') => setLog(l => [{ msg, type, ts:new Date().toLocaleTimeString() }, ...l.slice(0,28)]), []);
 
+  const configured = !!CFG.token;
+
+  // On mount: fetch latest run + ensure schedule exists
+  useEffect(() => {
+    if (!configured) return;
+    (async () => {
+      try {
+        const runsRes = await aLatestRun(CFG.token, CFG.actorId);
+        const run = runsRes?.data?.items?.[0];
+        if (run) setLastRun(run);
+
+        const schRes = await aListSchedules(CFG.token);
+        const found  = schRes?.data?.items?.find(s =>
+          s.actions?.some(a => a.actorId === CFG.actorId || a.actorId?.endsWith(`/${CFG.actorId.split('/').pop()}`))
+        );
+        if (found) {
+          setSchedule(found);
+        } else {
+          const created = await aCreateSchedule(CFG.token, {
+            name: 'autopulse-mudah',
+            cronExpression: CFG.cron,
+            isEnabled: true,
+            isExclusive: true,
+            timezone: 'Asia/Kuala_Lumpur',
+            actions: [{ type:'RUN_ACTOR', actorId:CFG.actorId,
+              runInput:{ contentType:'application/json; charset=utf-8',
+                body:JSON.stringify({ startUrls:[{url:CFG.searchUrl}], maxItems:CFG.maxItems }) } }]
+          });
+          if (created?.data) { setSchedule(created.data); addLog('Schedule created on Apify', 'success'); }
+        }
+      } catch(e) { addLog(`Init: ${e.message}`, 'error'); }
+    })();
+    return () => clearInterval(pollerRef.current);
+  }, []);
+
   const fetchDataset = useCallback(async (dsId) => {
-    addLog(`Fetching dataset (limit ${apify.maxItems})…`);
-    setRs(s => ({...s, pct:95}));
+    addLog(`Fetching dataset…`);
+    setPct(92);
     try {
-      const items = await aData(apify.token, dsId, apify.maxItems);
-      if (!Array.isArray(items)) throw new Error('Response is not an array — check token & dataset ID.');
+      const items = await aData(CFG.token, dsId, CFG.maxItems);
+      if (!Array.isArray(items)) throw new Error('Response is not an array.');
       const norm = normalize(items);
-      addLog(`Normalised ${norm.length} valid listings from ${items.length} raw items`, 'success');
-      setRs({ status:'succeeded', runId:null, dsId, error:null, pct:100 });
+      addLog(`Normalised ${norm.length} listings from ${items.length} raw items`, 'success');
+      setPhase('done'); setPct(100);
       onLiveData(norm);
     } catch(e) {
       addLog(`Fetch error: ${e.message}`, 'error');
-      setRs(s => ({...s, status:'failed', error:e.message}));
+      setPhase('error'); setError(e.message);
     }
-  }, [apify.token, apify.maxItems, addLog, onLiveData]);
+  }, [addLog, onLiveData]);
 
-  const pollRun = useCallback((runId) => {
+  const pollRun = useCallback((id) => {
     let attempts = 0;
     pollerRef.current = setInterval(async () => {
       attempts++;
-      setRs(s => ({...s, pct:Math.min(90, 15+attempts*7)}));
+      setPct(Math.min(90, 15+attempts*7));
       try {
-        const res    = await aStatus(apify.token, runId);
+        const res    = await aStatus(CFG.token, id);
         const status = res?.data?.status;
         const dsId   = res?.data?.defaultDatasetId;
         addLog(`Status: ${status} · ${res?.data?.stats?.itemsWritten||0} items`);
-        if (status==='SUCCEEDED') {
+        if (status === 'SUCCEEDED') {
           clearInterval(pollerRef.current);
-          addLog(`Run complete · Dataset: ${dsId}`, 'success');
-          setRs(s => ({...s, status:'fetching', pct:92, dsId}));
-          fetchDataset(dsId);
+          addLog(`Run complete · ${dsId}`, 'success');
+          setPhase('fetching'); fetchDataset(dsId);
         } else if (['FAILED','ABORTED','TIMED-OUT'].includes(status)) {
           clearInterval(pollerRef.current);
           addLog(`Run ${status.toLowerCase()}`, 'error');
-          setRs(s => ({...s, status:'failed', error:`Actor ${status.toLowerCase()}`}));
+          setPhase('error'); setError(`Actor ${status.toLowerCase()}`);
         }
       } catch(e) { addLog(`Poll error: ${e.message}`, 'error'); }
     }, 6000);
-  }, [apify.token, addLog, fetchDataset]);
+  }, [addLog, fetchDataset]);
 
-  useEffect(() => () => clearInterval(pollerRef.current), []);
-
-  const startRun = async () => {
-    if (!apify.token) { setRs(s => ({...s, error:'No API token set.'})); return; }
-    setRs({ status:'running', runId:null, dsId:null, error:null, pct:5 });
-    setLog([]);
-    addLog('Triggering Apify actor run…');
+  const triggerNow = async () => {
+    if (!configured) return;
+    clearInterval(pollerRef.current);
+    setPhase('running'); setPct(5); setError(null); setRunId(null); setLog([]);
+    addLog('Triggering manual run…');
     try {
-      let input;
-      try { input = JSON.parse(apify.inputJson); } catch { input = { startUrls:[{url:apify.searchUrl}], maxItems:apify.maxItems }; }
-      const res   = await aRun(apify.token, apify.actorId, input);
-      const runId = res?.data?.id;
-      if (!runId) throw new Error(res?.error?.message||'No run ID returned — verify actor ID and token.');
-      addLog(`Run started · ID: ${runId}`, 'success');
-      setRs(s => ({...s, runId, pct:15}));
-      pollRun(runId);
+      const res = await aRun(CFG.token, CFG.actorId, { startUrls:[{url:CFG.searchUrl}], maxItems:CFG.maxItems });
+      const id  = res?.data?.id;
+      if (!id) throw new Error(res?.error?.message || 'No run ID returned.');
+      addLog(`Run started · ${id}`, 'success');
+      setRunId(id); setPct(15); pollRun(id);
     } catch(e) {
       addLog(`Error: ${e.message}`, 'error');
-      setRs(s => ({...s, status:'failed', error:e.message}));
+      setPhase('error'); setError(e.message);
     }
   };
 
-  const loadDataset = async () => {
-    if (!apify.token || !apify.datasetId) { setRs(s => ({...s, error:'Token and Dataset ID required.'})); return; }
-    setRs({ status:'running', runId:null, dsId:apify.datasetId, error:null, pct:40 });
-    setLog([]);
-    addLog(`Loading dataset ${apify.datasetId}…`);
-    fetchDataset(apify.datasetId);
+  const toggleSchedule = async () => {
+    if (!schedule) return;
+    try {
+      await aUpdateSchedule(CFG.token, schedule.id, { ...schedule, isEnabled:!schedule.isEnabled });
+      setSchedule(s => ({...s, isEnabled:!s.isEnabled}));
+    } catch(e) { addLog(`Schedule update failed: ${e.message}`, 'error'); }
   };
 
-  const busy = rs.status==='running' || rs.status==='fetching';
-  const SC   = { idle:C.tx3, running:C.gold, fetching:C.sky, succeeded:C.em, failed:C.rose };
+  const busy = phase === 'running' || phase === 'fetching';
+  const SC   = { idle:C.tx3, running:C.gold, fetching:C.sky, done:C.em, error:C.rose };
+
+  const HISTORY = [
+    {id:'run_0531_06',t:'2026-05-31 06:00',s:'succeeded',r:4203,d:'12m 14s'},
+    {id:'run_0531_00',t:'2026-05-31 00:00',s:'succeeded',r:3987,d:'11m 52s'},
+    {id:'run_0530_18',t:'2026-05-30 18:00',s:'succeeded',r:4118,d:'12m 03s'},
+    {id:'run_0530_12',t:'2026-05-30 12:00',s:'failed',   r:0,   d:'3m 21s'},
+    {id:'run_0530_06',t:'2026-05-30 06:00',s:'succeeded',r:4067,d:'12m 09s'},
+  ];
 
   return (
     <div className="si">
       <Grid cols="3fr 2fr" gap={8} style={{ alignItems:'start' }}>
         <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+
+          {/* Status card */}
           <div style={cardP}>
             <Row style={{ justifyContent:'space-between', alignItems:'flex-start', marginBottom:24 }}>
-              <SectionHead eyebrow="Mudah Search Scraper" title="Apify Configuration" />
-              <Badge bg="rgba(0,209,102,0.08)" tc={C.em} bc="rgba(0,209,102,0.25)"><ShieldCheck style={{width:9,height:9}}/> API Ready</Badge>
+              <SectionHead eyebrow="Mudah Scraper" title="Pipeline Status" />
+              <Badge bg={configured?'rgba(0,209,102,0.08)':C.ambL} tc={configured?C.em:C.rose} bc={configured?'rgba(0,209,102,0.25)':C.ambG}>
+                {configured ? <><ShieldCheck style={{width:9,height:9}}/> Connected</> : <><AlertCircle style={{width:9,height:9}}/> No token</>}
+              </Badge>
             </Row>
 
-            <div style={{ marginBottom:16 }}>
-              <Label>API Token</Label>
-              <div style={{ position:'relative', marginTop:6 }}>
-                <Key style={{ position:'absolute', left:10, top:'50%', transform:'translateY(-50%)', width:12, height:12, color:C.tx2 }} />
-                <input type="password" value={apify.token} onChange={e=>setApify(a=>({...a,token:e.target.value}))} placeholder="apify_api_•••••••••••••" style={{ ...inp, paddingLeft:30 }} />
-              </div>
-            </div>
-
-            <div style={{ marginBottom:16 }}>
-              <Label>Mode</Label>
-              <div style={{ display:'flex', marginTop:6, border:`1px solid ${C.brd}`, borderRadius:2, overflow:'hidden' }}>
-                {[{id:'run',l:'Run Actor'},{id:'dataset',l:'Load Dataset'}].map(m => (
-                  <button key={m.id} onClick={()=>setMode(m.id)} style={{ flex:1, padding:'8px', fontSize:10, fontWeight:700, border:'none', cursor:'pointer', background:mode===m.id?C.amb:'transparent', color:mode===m.id?'#fff':C.tx2, transition:'all .15s', fontFamily:'inherit', letterSpacing:'0.1em', textTransform:'uppercase' }}>
-                    {m.l}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div style={{ marginBottom:16 }}>
-              <Label>{mode==='run'?'Actor ID':'Dataset ID'}</Label>
-              <input value={mode==='run'?apify.actorId:apify.datasetId} onChange={e=>setApify(a=>({...a,[mode==='run'?'actorId':'datasetId']:e.target.value}))} placeholder={mode==='run'?'apify/mudah-search-scraper':'dataset_abc123'} style={{ ...inp, marginTop:6, ...mono, fontSize:12 }} />
-            </div>
-
-            {mode==='run' && (
-              <>
-                <div style={{ marginBottom:16 }}>
-                  <Label>Search URL</Label>
-                  <input value={apify.searchUrl} onChange={e=>setApify(a=>({...a,searchUrl:e.target.value}))} style={{ ...inp, marginTop:6, fontSize:12 }} placeholder="https://www.mudah.my/malaysia/cars-for-sale" />
+            {/* Schedule */}
+            <div style={{ ...card, padding:'14px 16px', marginBottom:16 }}>
+              <Row style={{ justifyContent:'space-between', alignItems:'center' }}>
+                <div>
+                  <div style={{ ...lbl, marginBottom:4 }}>Schedule</div>
+                  <div style={{ fontSize:12, fontWeight:600, ...mono }}>{schedule?.cronExpression || CFG.cron}</div>
+                  {schedule?.nextRunAt && (
+                    <div style={{ fontSize:10, color:C.tx2, marginTop:3 }}>
+                      Next: {new Date(schedule.nextRunAt).toLocaleString()}
+                    </div>
+                  )}
                 </div>
-                <Grid cols="1fr 1fr" gap={10} style={{ marginBottom:16 }}>
-                  <div><Label>Max items</Label><input type="number" value={apify.maxItems} onChange={e=>setApify(a=>({...a,maxItems:+e.target.value}))} style={{ ...inp, marginTop:6, ...mono }} /></div>
-                  <div><Label>Input JSON override</Label><input value={apify.inputJson} onChange={e=>setApify(a=>({...a,inputJson:e.target.value}))} placeholder="{}" style={{ ...inp, marginTop:6, ...mono, fontSize:11 }} /></div>
-                </Grid>
-              </>
+                {schedule && (
+                  <button onClick={toggleSchedule} style={{ ...ghost, fontSize:9, padding:'4px 12px' }}>
+                    {schedule.isEnabled ? 'Pause' : 'Resume'}
+                  </button>
+                )}
+              </Row>
+            </div>
+
+            {/* Last run */}
+            {lastRun && (
+              <div style={{ ...card, padding:'14px 16px', marginBottom:16 }}>
+                <div style={{ ...lbl, marginBottom:6 }}>Last Completed Run</div>
+                <Row style={{ justifyContent:'space-between' }}>
+                  <span style={{ fontSize:11, color:C.tx2, ...mono }}>{lastRun.id}</span>
+                  <Badge bg="rgba(0,209,102,0.08)" tc={C.em} bc="rgba(0,209,102,0.25)">
+                    <CheckCircle2 style={{width:8,height:8}}/> succeeded
+                  </Badge>
+                </Row>
+                {lastRun.finishedAt && (
+                  <div style={{ fontSize:10, color:C.tx3, marginTop:4 }}>
+                    {new Date(lastRun.finishedAt).toLocaleString()}
+                  </div>
+                )}
+              </div>
             )}
 
-            {rs.status !== 'idle' && (
+            {/* Progress bar */}
+            {phase !== 'idle' && (
               <div style={{ marginBottom:18 }}>
                 <Row style={{ justifyContent:'space-between', marginBottom:6, fontSize:10 }}>
-                  <span style={{ color:SC[rs.status], fontWeight:700, letterSpacing:'0.1em', textTransform:'uppercase' }}>{rs.status}</span>
-                  <span style={{ color:C.tx2, ...mono }}>{rs.pct}%</span>
+                  <span style={{ color:SC[phase]||C.tx3, fontWeight:700, letterSpacing:'0.1em', textTransform:'uppercase' }}>{phase}</span>
+                  <span style={{ color:C.tx2, ...mono }}>{pct}%</span>
                 </Row>
                 <div style={{ height:3, background:C.s3 }}>
                   {busy
-                    ? <div className="stripe" style={{ height:'100%', width:`${rs.pct}%`, transition:'width .5s ease' }} />
-                    : <div style={{ height:'100%', width:`${rs.pct}%`, background:rs.status==='succeeded'?C.em:C.rose, transition:'width .5s ease' }} />}
+                    ? <div className="stripe" style={{ height:'100%', width:`${pct}%`, transition:'width .5s ease' }} />
+                    : <div style={{ height:'100%', width:`${pct}%`, background:phase==='done'?C.em:C.rose, transition:'width .5s ease' }} />}
                 </div>
-                {rs.error && <div style={{ fontSize:11, color:C.rose, marginTop:8, lineHeight:1.6 }}>{rs.error}</div>}
+                {error && <div style={{ fontSize:11, color:C.rose, marginTop:8, lineHeight:1.6 }}>{error}</div>}
               </div>
             )}
 
             <Row style={{ gap:8 }}>
-              <button style={{ ...btn, flex:1, display:'flex', alignItems:'center', justifyContent:'center', gap:8, opacity:(!apify.token||busy)?.5:1, cursor:(!apify.token||busy)?'not-allowed':'pointer' }} onClick={mode==='run'?startRun:loadDataset} disabled={!apify.token||busy}>
-                {busy?<><RefreshCw style={{width:13,height:13}} className="spin"/>Running…</>:mode==='run'?<><Play style={{width:13,height:13}}/>Run Now</>:<><Database style={{width:13,height:13}}/>Load Dataset</>}
+              <button style={{ ...btn, flex:1, display:'flex', alignItems:'center', justifyContent:'center', gap:8, opacity:(busy||!configured)?.5:1, cursor:(busy||!configured)?'not-allowed':'pointer' }}
+                onClick={triggerNow} disabled={busy||!configured}>
+                {busy ? <><RefreshCw style={{width:13,height:13}} className="spin"/>Running…</> : <><Play style={{width:13,height:13}}/>Run Now</>}
               </button>
-              {rs.status !== 'idle' && (
-                <button style={{ ...ghost, display:'flex', alignItems:'center', gap:6 }} onClick={()=>{clearInterval(pollerRef.current);setRs({status:'idle',runId:null,dsId:null,error:null,pct:0});setLog([]);}}>
+              {phase !== 'idle' && (
+                <button style={{ ...ghost, display:'flex', alignItems:'center', gap:6 }} onClick={()=>{ clearInterval(pollerRef.current); setPhase('idle'); setPct(0); setError(null); setLog([]); }}>
                   <X style={{ width:11, height:11 }} /> Reset
                 </button>
               )}
             </Row>
 
-            <div style={{ marginTop:16, padding:'12px 14px', background:C.s2, border:`1px solid ${C.brd}`, borderLeft:`2px solid ${C.gold}`, fontSize:11, color:C.tx2, lineHeight:1.75 }}>
-              <span style={{ color:C.gold, fontWeight:700 }}>Tip: </span>
-              Token at <span style={{ color:C.sky, cursor:'pointer', textDecoration:'underline' }} onClick={()=>window.open('https://console.apify.com/account/integrations','_blank')}>console.apify.com/account/integrations</span>.
-              Try actor <code style={{ background:C.s3, padding:'1px 6px', fontSize:10, ...mono }}>apify/mudah-search-scraper</code>.
-            </div>
+            {!configured && (
+              <div style={{ marginTop:16, padding:'12px 14px', background:C.s2, border:`1px solid ${C.brd}`, borderLeft:`2px solid ${C.gold}`, fontSize:11, color:C.tx2, lineHeight:1.75 }}>
+                <span style={{ color:C.gold, fontWeight:700 }}>Setup: </span>
+                Add <code style={{ background:C.s3, padding:'1px 6px', fontSize:10, ...mono }}>VITE_APIFY_TOKEN</code> to your Vercel environment variables.
+              </div>
+            )}
           </div>
 
+          {/* Run history */}
           <div style={cardP}>
             <SectionHead eyebrow="Last 5 runs" title="Run History" style={{ marginBottom:16 }} />
             <table style={{ width:'100%', fontSize:11, borderCollapse:'collapse' }}>
               <thead><tr>{['Run ID','Time','Status','Records','Duration'].map(h=><th key={h} style={{...lbl,fontSize:8,padding:'5px 8px',textAlign:['Records','Duration'].includes(h)?'right':'left',borderBottom:`1px solid ${C.brd}`}}>{h}</th>)}</tr></thead>
               <tbody>
-                {[{id:'run_0531_06',t:'2026-05-31 06:00',s:'succeeded',r:4203,d:'12m 14s'},{id:'run_0531_00',t:'2026-05-31 00:00',s:'succeeded',r:3987,d:'11m 52s'},{id:'run_0530_18',t:'2026-05-30 18:00',s:'succeeded',r:4118,d:'12m 03s'},{id:'run_0530_12',t:'2026-05-30 12:00',s:'failed',r:0,d:'3m 21s'},{id:'run_0530_06',t:'2026-05-30 06:00',s:'succeeded',r:4067,d:'12m 09s'}].map(r => (
+                {HISTORY.map(r => (
                   <tr key={r.id} className="trow" style={{ borderBottom:`1px solid ${C.brd}` }}>
                     <td style={{padding:'7px 8px',color:C.tx3,...mono,fontSize:10}}>{r.id}</td>
                     <td style={{padding:'7px 8px',color:C.tx2,fontSize:11}}>{r.t}</td>
@@ -1162,9 +1224,10 @@ const PipelineTab = ({ apify, setApify, onLiveData }) => {
         </div>
 
         <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+          {/* Data flow */}
           <div style={cardP}>
             <SectionHead eyebrow="Live state" title="Data Flow" style={{ marginBottom:18 }} />
-            {[{ic:Globe,l:'Mudah.my',s:'Source reachable'},{ic:Workflow,l:'Apify Actor',s:rs.status==='running'?'Running…':rs.status==='succeeded'?'Complete':rs.status==='failed'?'Failed':'Idle'},{ic:Cpu,l:'Normalizer',s:'Field mapper ready'},{ic:Database,l:'Dataset',s:rs.dsId||'Awaiting run'},{ic:BarChart3,l:'Dashboard',s:'Live'}].map((n,i,arr) => (
+            {[{ic:Globe,l:'Mudah.my',s:'Source reachable'},{ic:Workflow,l:'Apify Actor',s:phase==='running'?'Running…':phase==='done'?'Complete':phase==='error'?'Failed':'Idle'},{ic:Cpu,l:'Normalizer',s:'Field mapper ready'},{ic:Database,l:'Dataset',s:runId||'Awaiting run'},{ic:BarChart3,l:'Dashboard',s:'Live'}].map((n,i,arr) => (
               <div key={i} style={{ position:'relative' }}>
                 <Row style={{ gap:12, padding:'10px 0' }}>
                   <div style={{ width:34, height:34, background:C.s3, border:`1px solid ${C.brd}`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, borderRadius:2 }}>
@@ -1180,6 +1243,8 @@ const PipelineTab = ({ apify, setApify, onLiveData }) => {
               </div>
             ))}
           </div>
+
+          {/* Run log */}
           <div style={{ ...cardP, maxHeight:300, display:'flex', flexDirection:'column' }}>
             <Row style={{ justifyContent:'space-between', marginBottom:12 }}>
               <Label>Run Log</Label>
@@ -1187,10 +1252,10 @@ const PipelineTab = ({ apify, setApify, onLiveData }) => {
             </Row>
             <div style={{ overflowY:'auto', flex:1, ...mono, fontSize:10 }}>
               {log.length === 0 && <div style={{ color:C.tx3, fontStyle:'italic' }}>Awaiting run…</div>}
-              {log.map((l,i) => (
+              {log.map((entry,i) => (
                 <div key={i} style={{ display:'flex', gap:8, padding:'4px 0', borderBottom:`1px solid ${C.brd}`, alignItems:'flex-start' }}>
-                  <span style={{ color:C.tx3, flexShrink:0 }}>{l.ts}</span>
-                  <span style={{ color:l.type==='error'?C.rose:l.type==='success'?C.em:C.tx2, flex:1, lineHeight:1.5 }}>{l.msg}</span>
+                  <span style={{ color:C.tx3, flexShrink:0 }}>{entry.ts}</span>
+                  <span style={{ color:entry.type==='error'?C.rose:entry.type==='success'?C.em:C.tx2, flex:1, lineHeight:1.5 }}>{entry.msg}</span>
                 </div>
               ))}
             </div>
@@ -1218,11 +1283,28 @@ const DESCS = {
 };
 
 const Dashboard = ({ onHome, liveListings, setLiveListings }) => {
-  const [tab, setTab]               = useState('overview');
-  const [collapsed, setCollapsed]   = useState(false);
-  const [apify, setApify]           = useState({ token:'', actorId:'apify/mudah-search-scraper', searchUrl:'https://www.mudah.my/malaysia/cars-for-sale', maxItems:300, datasetId:'', inputJson:'{}' });
+  const [tab, setTab]             = useState('overview');
+  const [collapsed, setCollapsed] = useState(false);
   const listings = useMemo(() => liveListings || MOCK, [liveListings]);
   const isLive   = !!liveListings;
+
+  // Auto-load latest dataset on mount when token is configured
+  useEffect(() => {
+    if (!CFG.token || liveListings) return;
+    (async () => {
+      try {
+        const res  = await aLatestRun(CFG.token, CFG.actorId);
+        const run  = res?.data?.items?.[0];
+        if (run?.defaultDatasetId) {
+          const items = await aData(CFG.token, run.defaultDatasetId, CFG.maxItems);
+          if (Array.isArray(items)) {
+            const norm = normalize(items);
+            if (norm.length) setLiveListings(norm);
+          }
+        }
+      } catch { /* falls back to demo data silently */ }
+    })();
+  }, []);
 
   const tabContent = {
     overview:  <Overview   listings={listings} />,
@@ -1231,7 +1313,7 @@ const Dashboard = ({ onHome, liveListings, setLiveListings }) => {
     regional:  <Regional   listings={listings} />,
     valuation: <Valuation  listings={listings} />,
     inventory: <Inventory  listings={listings} />,
-    pipeline:  <PipelineTab apify={apify} setApify={setApify} onLiveData={setLiveListings} />,
+    pipeline:  <PipelineTab onLiveData={setLiveListings} />,
   };
 
   return (
