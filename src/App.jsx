@@ -106,95 +106,45 @@ const Styles = () => (
       -webkit-font-smoothing: antialiased;
     }
 
-    /* Noise overlay */
-    body::before {
-      content: '';
-      position: fixed;
-      inset: 0;
-      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
-      pointer-events: none;
-      z-index: 0;
-      opacity: .6;
-    }
-
-    /* Carbon fiber sidebar texture */
-    .carbon {
-      background-image:
-        repeating-linear-gradient(45deg,  transparent 0, transparent 2px, rgba(255,255,255,0.012) 2px, rgba(255,255,255,0.012) 4px),
-        repeating-linear-gradient(-45deg, transparent 0, transparent 2px, rgba(255,255,255,0.012) 2px, rgba(255,255,255,0.012) 4px);
-    }
-
-    /* HUD scanline on hero */
-    .scanlines::after {
-      content: '';
-      position: absolute;
-      inset: 0;
-      background: repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(0,0,0,0.05) 3px, rgba(0,0,0,0.05) 4px);
-      pointer-events: none;
-    }
-
-    /* Tachometer fill animation */
+    /* Tachometer fill — R=150, 270° fill to 72% = dashoffset 509 */
     @keyframes revUp { to { stroke-dashoffset: 0; } }
-    .revup { stroke-dashoffset: 543; animation: revUp 1.8s 0.5s cubic-bezier(.4,0,.2,1) forwards; }
+    .revup { stroke-dashoffset: 509; animation: revUp 1.8s 0.6s cubic-bezier(.4,0,.2,1) forwards; }
 
     /* Entry animations */
-    @keyframes slideUp   { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
-    @keyframes slideLeft { from { opacity:0; transform:translateX(20px); } to { opacity:1; transform:translateX(0); } }
-    @keyframes fadeIn    { from { opacity:0; } to { opacity:1; } }
-    .e0 { animation: slideUp  .55s cubic-bezier(.2,0,0,1) both; }
-    .e1 { animation: slideUp  .55s .10s cubic-bezier(.2,0,0,1) both; }
-    .e2 { animation: slideUp  .55s .20s cubic-bezier(.2,0,0,1) both; }
-    .e3 { animation: slideUp  .55s .30s cubic-bezier(.2,0,0,1) both; }
-    .e4 { animation: slideUp  .55s .40s cubic-bezier(.2,0,0,1) both; }
-    .el { animation: slideLeft .55s .15s cubic-bezier(.2,0,0,1) both; }
-    .si { animation: fadeIn   .28s ease forwards; }
+    @keyframes slideUp { from { opacity:0; transform:translateY(18px); } to { opacity:1; transform:translateY(0); } }
+    @keyframes fadeIn  { from { opacity:0; } to { opacity:1; } }
+    .e0 { animation: slideUp .5s cubic-bezier(.2,0,0,1) both; }
+    .e1 { animation: slideUp .5s .10s cubic-bezier(.2,0,0,1) both; }
+    .e2 { animation: slideUp .5s .20s cubic-bezier(.2,0,0,1) both; }
+    .e3 { animation: slideUp .5s .30s cubic-bezier(.2,0,0,1) both; }
+    .e4 { animation: slideUp .5s .40s cubic-bezier(.2,0,0,1) both; }
+    .si { animation: fadeIn .25s ease forwards; }
 
-    /* Interactions */
     @keyframes spin   { to { transform:rotate(360deg); } }
     @keyframes blink  { 0%,100%{opacity:1} 50%{opacity:0.15} }
     @keyframes ticker { from{transform:translateX(0)} to{transform:translateX(-50%)} }
     @keyframes prog   { from{background-position:0 0} to{background-position:40px 0} }
-    .spin   { animation: spin 1s linear infinite; }
-    .blink  { animation: blink 1.8s ease-in-out infinite; }
+    .spin        { animation: spin 1s linear infinite; }
+    .blink       { animation: blink 1.8s ease-in-out infinite; }
     .ticker-anim { animation: ticker 55s linear infinite; }
-    .stripe { background: repeating-linear-gradient(90deg,${C.amb} 0,${C.amb} 20px,rgba(232,0,29,.3) 20px,rgba(232,0,29,.3) 40px); background-size:40px 100%; animation:prog 1s linear infinite; }
+    .stripe      { background: repeating-linear-gradient(90deg,${C.amb} 0,${C.amb} 20px,rgba(232,0,29,.3) 20px,rgba(232,0,29,.3) 40px); background-size:40px 100%; animation:prog 1s linear infinite; }
 
-    /* Lift hover */
-    .lift { transition: transform .18s ease, box-shadow .18s ease; }
-    .lift:hover { transform: translateY(-1px); box-shadow: 0 6px 24px rgba(0,0,0,0.35), 0 0 0 1px rgba(232,0,29,0.15); }
+    .lift { transition: border-color .18s ease; }
+    .lift:hover { border-color: rgba(255,255,255,0.14) !important; }
 
-    /* Red glow on KPI hover */
-    .kpi-lift { transition: box-shadow .2s ease, border-color .2s ease; }
-    .kpi-lift:hover { box-shadow: 0 0 20px rgba(232,0,29,0.12), 0 4px 20px rgba(0,0,0,0.4); }
-
-    /* Scrollbar */
     ::-webkit-scrollbar { width: 3px; height: 3px; }
     ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: rgba(232,0,29,0.25); }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); }
 
-    /* Input / select */
     input::placeholder, textarea::placeholder { color: ${C.tx3}; }
     select option { background: ${C.s2}; color: ${C.tx}; }
     input[type=range] { accent-color: ${C.amb}; }
 
-    /* Table rows */
     .trow { transition: background .12s ease; }
     .trow:hover td { background: ${C.s2}; }
 
-    /* Nav item */
     .nav-item { transition: color .14s; }
     .nav-item:hover { color: ${C.tx} !important; }
-
-    /* Bracket corners — decorative HUD reticle */
-    .bracket::before, .bracket::after {
-      content: '';
-      position: absolute;
-      width: 10px;
-      height: 10px;
-      pointer-events: none;
-    }
-    .bracket::before { top: -1px; left: -1px; border-top: 1.5px solid ${C.amb}; border-left: 1.5px solid ${C.amb}; }
-    .bracket::after  { bottom: -1px; right: -1px; border-bottom: 1.5px solid ${C.amb}; border-right: 1.5px solid ${C.amb}; }
   `}</style>
 );
 
@@ -225,25 +175,13 @@ const TT = ({ active, payload, label }) => {
   );
 };
 
-// Corner bracket reticle inside cards
-const Brackets = ({ color = C.amb, size = 10, opacity = 0.6 }) => (
-  <>
-    <div style={{ position:'absolute', top:-1, left:-1, width:size, height:size, borderTop:`1.5px solid ${color}`, borderLeft:`1.5px solid ${color}`, opacity, pointerEvents:'none' }} />
-    <div style={{ position:'absolute', top:-1, right:-1, width:size, height:size, borderTop:`1.5px solid ${color}`, borderRight:`1.5px solid ${color}`, opacity, pointerEvents:'none' }} />
-    <div style={{ position:'absolute', bottom:-1, left:-1, width:size, height:size, borderBottom:`1.5px solid ${color}`, borderLeft:`1.5px solid ${color}`, opacity, pointerEvents:'none' }} />
-    <div style={{ position:'absolute', bottom:-1, right:-1, width:size, height:size, borderBottom:`1.5px solid ${color}`, borderRight:`1.5px solid ${color}`, opacity, pointerEvents:'none' }} />
-  </>
-);
-
 const KPI = ({ label: lbl_, value, delta, icon: Icon }) => {
   const up = (delta ?? 0) >= 0;
   return (
-    <div style={kpiS} className="kpi-lift">
-      <Brackets />
-      <div style={{ position:'absolute', top:0, right:0, width:60, height:60, background:`radial-gradient(circle at top right, rgba(232,0,29,0.06), transparent 70%)`, pointerEvents:'none' }} />
+    <div style={kpiS}>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:14 }}>
         <div style={lbl}>{lbl_}</div>
-        <Icon style={{ color:C.amb, width:13, height:13, opacity:.7 }} />
+        <Icon style={{ color:C.tx3, width:12, height:12 }} />
       </div>
       <div style={{ fontSize:34, fontWeight:400, color:C.tx, letterSpacing:'-0.01em', lineHeight:1, ...mono }}>{value}</div>
       {delta !== undefined && (
@@ -259,13 +197,10 @@ const KPI = ({ label: lbl_, value, delta, icon: Icon }) => {
   );
 };
 
-const SectionHead = ({ eyebrow, title, color = C.amb, style: s = {} }) => (
+const SectionHead = ({ eyebrow, title, style: s = {} }) => (
   <div style={{ ...s }}>
-    {eyebrow && <div style={{ ...lbl, color, marginBottom:6 }}>{eyebrow}</div>}
-    <div style={{ fontSize:13, fontWeight:600, color:C.tx, display:'flex', alignItems:'center', gap:8 }}>
-      <span style={{ display:'inline-block', width:14, height:2, background:color, flexShrink:0 }} />
-      {title}
-    </div>
+    {eyebrow && <div style={{ ...lbl, marginBottom:5 }}>{eyebrow}</div>}
+    <div style={{ fontSize:13, fontWeight:600, color:C.tx }}>{title}</div>
   </div>
 );
 
@@ -284,69 +219,51 @@ const Grid = ({ children, cols = 'repeat(auto-fit,minmax(160px,1fr))', gap = 8, 
 );
 
 // ── TACHOMETER ────────────────────────────────────────────────────────────────
-// R=160, circ≈1005. 270° arc = 754px. Fill to 72% = 543px animated in.
+// R=150, circ≈942. 270° arc = 707px. Fill to 72% = 509px → dashoffset 509→0.
 const Tachometer = () => {
-  const R = 160, cx = 240, cy = 240;
-  const ticks = Array.from({ length: 17 }, (_, i) => {
-    const angle = (135 + (270/16)*i) * Math.PI / 180;
-    const major = i % 4 === 0;
-    const mid   = i % 2 === 0 && !major;
-    const r1 = R - 8, r2 = major ? R + 16 : mid ? R + 9 : R + 4;
-    return { angle, major, mid, r1, r2, label: major ? String(i * 1000).replace('000','') : null };
+  const R = 150, cx = 240, cy = 240;
+  const ticks = Array.from({ length: 9 }, (_, i) => {
+    const angle = (135 + (270/8)*i) * Math.PI / 180;
+    const major = i === 0 || i === 4 || i === 8;
+    return { angle, major };
   });
-
   const stats = [
-    ['12,438','LISTINGS',  cx,   70],
-    ['RM 68.5k','MEDIAN',  395,  148],
-    ['94k km','MILEAGE',   395,  332],
-    ['13','REGIONS',       cx,   412],
-    ['847','DEALERS',      85,   332],
-    ['4×','REFRESH',       85,   148],
+    ['12,438', 'LISTINGS',  cx,    68],
+    ['RM 68.5k','MEDIAN',   392,  148],
+    ['94k km', 'MILEAGE',   392,  334],
+    ['13',     'REGIONS',   cx,   414],
+    ['847',    'DEALERS',   88,   334],
+    ['4×',     'REFRESH',   88,   148],
   ];
-
   return (
-    <svg viewBox="0 0 480 480" style={{ position:'absolute', right:'-3%', top:'50%', transform:'translateY(-50%)', width:'52%', maxWidth:460, pointerEvents:'none', opacity:.95 }} aria-hidden>
-      {/* Outer decoration rings */}
-      <circle cx={cx} cy={cy} r={220} stroke="rgba(232,0,29,0.04)" strokeWidth="1" fill="none" />
-      <circle cx={cx} cy={cy} r={205} stroke="rgba(232,0,29,0.03)" strokeWidth=".5" fill="none" strokeDasharray="3 10" />
-
-      {/* Track arc background (270°) */}
-      <circle cx={cx} cy={cy} r={R} fill="none" stroke="rgba(232,0,29,0.08)" strokeWidth="10"
-        strokeDasharray="754 251" transform={`rotate(135 ${cx} ${cy})`} />
-
-      {/* Filled arc — animated revup */}
-      <circle cx={cx} cy={cy} r={R} fill="none" stroke={C.amb} strokeWidth="3" strokeLinecap="round"
-        strokeDasharray="543 462" transform={`rotate(135 ${cx} ${cy})`} className="revup" />
-
-      {/* Inner glow arc */}
-      <circle cx={cx} cy={cy} r={R} fill="none" stroke="rgba(232,0,29,0.35)" strokeWidth="1"
-        strokeDasharray="543 462" transform={`rotate(135 ${cx} ${cy})`} className="revup"
-        style={{ filter:'blur(3px)' }} />
-
-      {/* Tick marks */}
-      {ticks.map(({ angle, major, mid, r1, r2 }, i) => (
+    <svg viewBox="0 0 480 480" style={{ width:'100%', maxWidth:420, display:'block' }} aria-hidden>
+      {/* Track arc 270° */}
+      <circle cx={cx} cy={cy} r={R} fill="none" stroke="rgba(232,0,29,0.09)" strokeWidth="6"
+        strokeDasharray="707 235" transform={`rotate(135 ${cx} ${cy})`} />
+      {/* Animated fill */}
+      <circle cx={cx} cy={cy} r={R} fill="none" stroke={C.amb} strokeWidth="2" strokeLinecap="round"
+        strokeDasharray="509 433" transform={`rotate(135 ${cx} ${cy})`} className="revup" />
+      {/* Ticks */}
+      {ticks.map(({ angle, major }, i) => (
         <line key={i}
-          x1={cx + r1*Math.cos(angle)} y1={cy + r1*Math.sin(angle)}
-          x2={cx + r2*Math.cos(angle)} y2={cy + r2*Math.sin(angle)}
-          stroke={`rgba(232,0,29,${major ? .75 : mid ? .35 : .18})`}
-          strokeWidth={major ? 1.5 : mid ? .8 : .5}
+          x1={cx + (R-4)*Math.cos(angle)} y1={cy + (R-4)*Math.sin(angle)}
+          x2={cx + (major ? R+13 : R+5)*Math.cos(angle)} y2={cy + (major ? R+13 : R+5)*Math.sin(angle)}
+          stroke={`rgba(232,0,29,${major ? .6 : .2})`}
+          strokeWidth={major ? 1.5 : .7}
         />
       ))}
-
-      {/* Stats at clock positions */}
+      {/* Stats */}
       {stats.map(([val, lb, x, y], i) => (
         <g key={i}>
-          <text x={x} y={y - 5} textAnchor="middle" fontSize={15} fontWeight="700" fill={C.tx} fontFamily='"Share Tech Mono"'>{val}</text>
-          <text x={x} y={y + 12} textAnchor="middle" fontSize={8} fontWeight="600" fill={C.tx3} letterSpacing="2" fontFamily='"Chakra Petch"'>{lb}</text>
+          <text x={x} y={y-4}  textAnchor="middle" fontSize={14} fontWeight="600" fill={C.tx}  fontFamily='"Share Tech Mono"'>{val}</text>
+          <text x={x} y={y+11} textAnchor="middle" fontSize={7.5} fill={C.tx3} letterSpacing="2" fontFamily='"Chakra Petch"'>{lb}</text>
         </g>
       ))}
-
-      {/* Center hub */}
-      <circle cx={cx} cy={cy} r={54} fill="none" stroke="rgba(232,0,29,0.12)" strokeWidth="1" />
-      <circle cx={cx} cy={cy} r={38} fill="rgba(232,0,29,0.05)" stroke="rgba(232,0,29,0.25)" strokeWidth="1.5" />
+      {/* Center */}
+      <circle cx={cx} cy={cy} r={34} fill="none" stroke="rgba(232,0,29,0.14)" strokeWidth="1" />
       <circle cx={cx} cy={cy} r={5}  fill={C.amb} />
-      <text x={cx} y={cy - 9} textAnchor="middle" fontSize={10} fontWeight="700" fill={C.amb} letterSpacing="4" fontFamily='"Chakra Petch"'>APEX</text>
-      <text x={cx} y={cy + 18} textAnchor="middle" fontSize={8} fill={C.tx3} letterSpacing="3" fontFamily='"Chakra Petch"'>INTELLIGENCE</text>
+      <text x={cx} y={cy-8}  textAnchor="middle" fontSize={8.5} fontWeight="700" fill={C.amb} letterSpacing="4" fontFamily='"Chakra Petch"'>APEX</text>
+      <text x={cx} y={cy+15} textAnchor="middle" fontSize={7}   fill={C.tx3}    letterSpacing="2" fontFamily='"Chakra Petch"'>MY</text>
     </svg>
   );
 };
@@ -389,15 +306,9 @@ const Landing = ({ onLaunch }) => {
       </nav>
 
       {/* ── Hero ── */}
-      <section style={{ position:'relative', minHeight:'86vh', display:'flex', alignItems:'center', overflow:'hidden' }} className="scanlines">
-        {/* Grid overlay */}
-        <div style={{ position:'absolute', inset:0, backgroundImage:`linear-gradient(rgba(255,255,255,0.02) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.02) 1px,transparent 1px)`, backgroundSize:'60px 60px', pointerEvents:'none' }} />
-        {/* Red ambient glow */}
-        <div style={{ position:'absolute', left:-100, top:'40%', width:400, height:400, background:`radial-gradient(circle, rgba(232,0,29,0.08) 0%, transparent 70%)`, pointerEvents:'none' }} />
+      <section style={{ display:'grid', gridTemplateColumns:'1fr 1fr', minHeight:'80vh', alignItems:'center', padding:'0 48px', gap:64, maxWidth:1280, margin:'0 auto' }}>
 
-        <Tachometer />
-
-        <div style={{ position:'relative', zIndex:10, padding:'60px 48px', maxWidth:680 }}>
+        <div>
           <div className="e0" style={{ display:'flex', alignItems:'center', gap:10, marginBottom:20 }}>
             <div style={{ width:6, height:6, background:C.em, borderRadius:'50%' }} className="blink" />
             <Badge bg="rgba(0,209,102,0.08)" tc={C.em} bc="rgba(0,209,102,0.25)">Apify Mudah Scraper · Live</Badge>
@@ -416,7 +327,7 @@ const Landing = ({ onLaunch }) => {
           </p>
 
           <Row className="e3" style={{ gap:12, flexWrap:'wrap' }}>
-            <button style={{ ...btn, display:'flex', alignItems:'center', gap:8, boxShadow:`0 0 30px rgba(232,0,29,0.3)` }} onClick={onLaunch}>
+            <button style={{ ...btn, display:'flex', alignItems:'center', gap:8 }} onClick={onLaunch}>
               Launch Dashboard <ArrowRight style={{ width:13, height:13 }} />
             </button>
             <button style={{ ...ghost, display:'flex', alignItems:'center', gap:8 }}>
@@ -433,6 +344,10 @@ const Landing = ({ onLaunch }) => {
               </div>
             ))}
           </div>
+        </div>
+
+        <div style={{ display:'flex', justifyContent:'center', alignItems:'center' }}>
+          <Tachometer />
         </div>
       </section>
 
@@ -462,7 +377,6 @@ const Landing = ({ onLaunch }) => {
         <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:1, background:C.brd }}>
           {features.map((f,i) => (
             <div key={i} className="lift" style={{ ...card, padding:'28px 24px', background:C.s1 }}>
-              <Brackets opacity={0.4} />
               <Row style={{ justifyContent:'space-between', alignItems:'flex-start', marginBottom:18 }}>
                 <div style={{ ...mono, fontSize:10, fontWeight:700, color:C.amb }}>{f.n}</div>
                 <f.icon style={{ width:14, height:14, color:C.tx3 }} />
@@ -477,7 +391,6 @@ const Landing = ({ onLaunch }) => {
       {/* ── Pipeline ── */}
       <section style={{ padding:'0 48px 72px', maxWidth:1280, margin:'0 auto' }}>
         <div style={{ ...card, padding:'36px 44px', background:C.s1 }}>
-          <Brackets />
           <div style={{ marginBottom:32 }}>
             <div style={{ ...lbl, color:C.sky, marginBottom:8 }}>Pipeline Architecture</div>
             <h2 style={{ fontSize:18, fontWeight:700, letterSpacing:'0.06em', textTransform:'uppercase' }}>From classified ad to decision signal.</h2>
@@ -538,7 +451,7 @@ const TABS = [
 ];
 
 const Sidebar = ({ tab, setTab, collapsed, setCollapsed, isLive, count, onHome }) => (
-  <div className="carbon" style={{ width:collapsed?50:200, background:C.s1, borderRight:`1px solid ${C.brd}`, display:'flex', flexDirection:'column', flexShrink:0, transition:'width .22s cubic-bezier(.2,0,0,1)', overflow:'hidden' }}>
+  <div style={{ width:collapsed?50:200, background:C.s1, borderRight:`1px solid ${C.brd}`, display:'flex', flexDirection:'column', flexShrink:0, transition:'width .22s cubic-bezier(.2,0,0,1)', overflow:'hidden' }}>
     <div style={{ height:58, display:'flex', alignItems:'center', padding:collapsed?'0 14px':'0 14px', borderBottom:`1px solid ${C.brd}`, gap:10, justifyContent:collapsed?'center':'flex-start', flexShrink:0 }}>
       {!collapsed && (
         <>
@@ -617,9 +530,7 @@ const Overview = ({ listings }) => {
       </Grid>
 
       <Grid cols="2fr 1fr" gap={8} style={{ marginBottom:8 }}>
-        <div style={cardP}>
-          <Brackets opacity={0.3} />
-          <Row style={{ justifyContent:'space-between', alignItems:'flex-start', marginBottom:20 }}>
+        <div style={cardP}>          <Row style={{ justifyContent:'space-between', alignItems:'flex-start', marginBottom:20 }}>
             <SectionHead eyebrow="12-month trajectory" title="Volume &amp; Median Price" />
             <Badge bg="rgba(0,209,102,0.08)" tc={C.em} bc="rgba(0,209,102,0.25)">
               <div style={{width:5,height:5,background:C.em,borderRadius:'50%'}} className="blink" /> Live
@@ -644,9 +555,7 @@ const Overview = ({ listings }) => {
           </ResponsiveContainer>
         </div>
 
-        <div style={cardP}>
-          <Brackets opacity={0.3} />
-          <SectionHead eyebrow="By listing count" title="Brand Distribution" style={{ marginBottom:14 }} />
+        <div style={cardP}>          <SectionHead eyebrow="By listing count" title="Brand Distribution" style={{ marginBottom:14 }} />
           <ResponsiveContainer width="100%" height={145}>
             <PieChart>
               <Pie data={brandMap} dataKey="value" nameKey="name" innerRadius={36} outerRadius={62} paddingAngle={2} strokeWidth={0}>
@@ -669,7 +578,6 @@ const Overview = ({ listings }) => {
       </Grid>
 
       <div style={cardP}>
-        <Brackets opacity={0.3} />
         <Row style={{ justifyContent:'space-between', alignItems:'flex-start', marginBottom:16 }}>
           <SectionHead eyebrow="Latest ingested from Mudah" title="Recent Listings" />
           <Badge bg={C.s3} tc={C.tx2} bc={C.brd}>{listings[0]?.source==='apify'?'Apify':'Demo'}</Badge>
@@ -754,9 +662,7 @@ const Pricing = ({ listings }) => {
       )}
 
       <Grid cols="3fr 2fr" gap={8}>
-        <div style={cardP}>
-          <Brackets opacity={0.3} />
-          <SectionHead eyebrow={`${brand} ${model} · min / avg / max`} title="Price Spread by Year (RM k)" style={{ marginBottom:20 }} />
+        <div style={cardP}>          <SectionHead eyebrow={`${brand} ${model} · min / avg / max`} title="Price Spread by Year (RM k)" style={{ marginBottom:20 }} />
           <ResponsiveContainer width="100%" height={260}>
             <ComposedChart data={byYear}>
               <CartesianGrid {...gridProps} />
@@ -817,7 +723,6 @@ const Trends = ({ listings }) => {
         </Row>
       </div>
       <div style={{ ...cardP, marginBottom:8 }}>
-        <Brackets opacity={0.3} />
         <SectionHead eyebrow="By region · 12 months" title={metric==='price'?'Median Price (RM k)':metric==='mileage'?'Avg Mileage (k km)':'Listing Volume'} style={{ marginBottom:20 }} />
         <ResponsiveContainer width="100%" height={280}>
           <LineChart data={data}>
@@ -833,9 +738,7 @@ const Trends = ({ listings }) => {
         </Row>
       </div>
       <Grid cols="1fr 1fr" gap={8}>
-        <div style={cardP}>
-          <Brackets opacity={0.3} />
-          <SectionHead eyebrow="30-day window" title="Price Movers" style={{ marginBottom:16 }} />
+        <div style={cardP}>          <SectionHead eyebrow="30-day window" title="Price Movers" style={{ marginBottom:16 }} />
           {[{m:'Proton X50 1.5T',d:4.8,up:true},{m:'Honda City 1.5V',d:3.2,up:true},{m:'Toyota Vios 1.5G',d:1.7,up:true},{m:'BMW 320i Sport',d:2.1,up:false},{m:'Mercedes C200',d:3.4,up:false}].map((x,i) => (
             <Row key={i} style={{ justifyContent:'space-between', padding:'10px 0', borderBottom:`1px solid ${C.brd}` }}>
               <span style={{ fontSize:12 }}>{x.m}</span>
@@ -845,9 +748,7 @@ const Trends = ({ listings }) => {
             </Row>
           ))}
         </div>
-        <div style={cardP}>
-          <Brackets opacity={0.3} />
-          <SectionHead eyebrow="KL normalised" title="Seasonal Volume" style={{ marginBottom:12 }} />
+        <div style={cardP}>          <SectionHead eyebrow="KL normalised" title="Seasonal Volume" style={{ marginBottom:12 }} />
           <ResponsiveContainer width="100%" height={180}>
             <AreaChart data={data}>
               <defs>
@@ -881,9 +782,7 @@ const Regional = ({ listings }) => {
   return (
     <div className="si">
       <Grid cols="1fr 1fr" gap={8} style={{ marginBottom:8 }}>
-        <div style={cardP}>
-          <Brackets opacity={0.3} />
-          <SectionHead eyebrow="All regions" title="Listing Volume" style={{ marginBottom:20 }} />
+        <div style={cardP}>          <SectionHead eyebrow="All regions" title="Listing Volume" style={{ marginBottom:20 }} />
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={regional} layout="vertical" margin={{ left:8 }}>
               <CartesianGrid {...gridProps} />
@@ -894,9 +793,7 @@ const Regional = ({ listings }) => {
             </BarChart>
           </ResponsiveContainer>
         </div>
-        <div style={cardP}>
-          <Brackets opacity={0.3} />
-          <SectionHead eyebrow="Price vs mileage" title="Regional Comparison" style={{ marginBottom:20 }} />
+        <div style={cardP}>          <SectionHead eyebrow="Price vs mileage" title="Regional Comparison" style={{ marginBottom:20 }} />
           <ResponsiveContainer width="100%" height={300}>
             <ComposedChart data={regional}>
               <CartesianGrid {...gridProps} />
@@ -911,7 +808,6 @@ const Regional = ({ listings }) => {
         </div>
       </Grid>
       <div style={cardP}>
-        <Brackets opacity={0.3} />
         <SectionHead eyebrow="Full breakdown" title="All 13 Regions" style={{ marginBottom:16 }} />
         <table style={{ width:'100%', fontSize:12, borderCollapse:'collapse' }}>
           <thead><tr>{['Region','Listings','Avg Price','Avg Mileage','Share'].map(h => <th key={h} style={{ ...lbl, padding:'6px 10px', textAlign:['Listings','Avg Price','Avg Mileage'].includes(h)?'right':'left', borderBottom:`1px solid ${C.brd}` }}>{h}</th>)}</tr></thead>
@@ -959,9 +855,7 @@ const Valuation = ({ listings }) => {
   return (
     <div className="si">
       <Grid cols="1fr 1fr" gap={8}>
-        <div style={cardP}>
-          <Brackets opacity={0.3} />
-          <SectionHead eyebrow="Estimate fair-market value" title="Vehicle Details" style={{ marginBottom:24 }} />
+        <div style={cardP}>          <SectionHead eyebrow="Estimate fair-market value" title="Vehicle Details" style={{ marginBottom:24 }} />
           <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
             {[{k:'brand',l:'Make',opts:BRANDS.map(b=>b.b)},{k:'model',l:'Model',opts:models},{k:'year',l:'Year',opts:[2015,2016,2017,2018,2019,2020,2021,2022,2023,2024]},{k:'region',l:'Region',opts:REGIONS}].map(f => (
               <div key={f.k}><Label>{f.l}</Label><Sel value={String(form[f.k])} onChange={v=>set(f.k,f.k==='year'?+v:v)} style={{marginTop:6}}>{f.opts.map(o=><option key={o}>{o}</option>)}</Sel></div>
@@ -973,15 +867,13 @@ const Valuation = ({ listings }) => {
               </Row>
               <input type="range" min={10000} max={250000} step={5000} value={form.mileage} onChange={e=>set('mileage',+e.target.value)} style={{ width:'100%' }} />
             </div>
-            <button style={{ ...btn, display:'flex', alignItems:'center', justifyContent:'center', gap:8, boxShadow:`0 0 20px rgba(232,0,29,0.2)` }} onClick={calc}>
+            <button style={{ ...btn, display:'flex', alignItems:'center', justifyContent:'center', gap:8,  }} onClick={calc}>
               <Calculator style={{ width:13, height:13 }} /> Estimate Value
             </button>
           </div>
         </div>
 
         <div style={{ ...cardP, position:'relative', overflow:'hidden' }}>
-          <Brackets opacity={0.5} />
-          <div style={{ position:'absolute', top:0, right:0, width:180, height:180, background:`radial-gradient(circle at top right, rgba(232,0,29,0.07), transparent 70%)`, pointerEvents:'none' }} />
           <SectionHead eyebrow="Based on comparable listings" title="Estimated Value" style={{ marginBottom:24 }} />
           {result?.none ? (
             <div style={{ textAlign:'center', padding:'40px 0', color:C.tx2 }}>
@@ -1043,9 +935,7 @@ const Inventory = ({ listings }) => {
         <KPI label="Avg Δ Stock"     value={`+${(dealers.reduce((a,b)=>a+b.chg,0)/dealers.length).toFixed(1)}`} delta={1.8} icon={Activity} />
       </Grid>
       <Grid cols="3fr 2fr" gap={8}>
-        <div style={cardP}>
-          <Brackets opacity={0.3} />
-          <Row style={{ justifyContent:'space-between', alignItems:'flex-start', marginBottom:16 }}>
+        <div style={cardP}>          <Row style={{ justifyContent:'space-between', alignItems:'flex-start', marginBottom:16 }}>
             <SectionHead eyebrow="Monitored dealers" title="Watchlist" />
             <button style={{ ...ghost, display:'flex', alignItems:'center', gap:6, fontSize:10 }}><Plus style={{width:10,height:10}}/> Add</button>
           </Row>
@@ -1072,9 +962,7 @@ const Inventory = ({ listings }) => {
             </Row>
           ))}
         </div>
-        <div style={cardP}>
-          <Brackets opacity={0.3} />
-          <Row style={{ justifyContent:'space-between', alignItems:'flex-start', marginBottom:16 }}>
+        <div style={cardP}>          <Row style={{ justifyContent:'space-between', alignItems:'flex-start', marginBottom:16 }}>
             <SectionHead eyebrow="48h window" title="Alerts" />
             <Badge bg="rgba(0,209,102,0.08)" tc={C.em} bc="rgba(0,209,102,0.25)"><div style={{width:5,height:5,background:C.em,borderRadius:'50%'}} className="blink"/> Live</Badge>
           </Row>
@@ -1179,7 +1067,6 @@ const PipelineTab = ({ apify, setApify, onLiveData }) => {
       <Grid cols="3fr 2fr" gap={8} style={{ alignItems:'start' }}>
         <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
           <div style={cardP}>
-            <Brackets />
             <Row style={{ justifyContent:'space-between', alignItems:'flex-start', marginBottom:24 }}>
               <SectionHead eyebrow="Mudah Search Scraper" title="Apify Configuration" />
               <Badge bg="rgba(0,209,102,0.08)" tc={C.em} bc="rgba(0,209,102,0.25)"><ShieldCheck style={{width:9,height:9}}/> API Ready</Badge>
@@ -1238,7 +1125,7 @@ const PipelineTab = ({ apify, setApify, onLiveData }) => {
             )}
 
             <Row style={{ gap:8 }}>
-              <button style={{ ...btn, flex:1, display:'flex', alignItems:'center', justifyContent:'center', gap:8, opacity:(!apify.token||busy)?.5:1, cursor:(!apify.token||busy)?'not-allowed':'pointer', boxShadow: (!apify.token||busy)?'none':`0 0 20px rgba(232,0,29,0.2)` }} onClick={mode==='run'?startRun:loadDataset} disabled={!apify.token||busy}>
+              <button style={{ ...btn, flex:1, display:'flex', alignItems:'center', justifyContent:'center', gap:8, opacity:(!apify.token||busy)?.5:1, cursor:(!apify.token||busy)?'not-allowed':'pointer' }} onClick={mode==='run'?startRun:loadDataset} disabled={!apify.token||busy}>
                 {busy?<><RefreshCw style={{width:13,height:13}} className="spin"/>Running…</>:mode==='run'?<><Play style={{width:13,height:13}}/>Run Now</>:<><Database style={{width:13,height:13}}/>Load Dataset</>}
               </button>
               {rs.status !== 'idle' && (
@@ -1256,7 +1143,6 @@ const PipelineTab = ({ apify, setApify, onLiveData }) => {
           </div>
 
           <div style={cardP}>
-            <Brackets opacity={0.3} />
             <SectionHead eyebrow="Last 5 runs" title="Run History" style={{ marginBottom:16 }} />
             <table style={{ width:'100%', fontSize:11, borderCollapse:'collapse' }}>
               <thead><tr>{['Run ID','Time','Status','Records','Duration'].map(h=><th key={h} style={{...lbl,fontSize:8,padding:'5px 8px',textAlign:['Records','Duration'].includes(h)?'right':'left',borderBottom:`1px solid ${C.brd}`}}>{h}</th>)}</tr></thead>
@@ -1277,7 +1163,6 @@ const PipelineTab = ({ apify, setApify, onLiveData }) => {
 
         <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
           <div style={cardP}>
-            <Brackets opacity={0.3} />
             <SectionHead eyebrow="Live state" title="Data Flow" style={{ marginBottom:18 }} />
             {[{ic:Globe,l:'Mudah.my',s:'Source reachable'},{ic:Workflow,l:'Apify Actor',s:rs.status==='running'?'Running…':rs.status==='succeeded'?'Complete':rs.status==='failed'?'Failed':'Idle'},{ic:Cpu,l:'Normalizer',s:'Field mapper ready'},{ic:Database,l:'Dataset',s:rs.dsId||'Awaiting run'},{ic:BarChart3,l:'Dashboard',s:'Live'}].map((n,i,arr) => (
               <div key={i} style={{ position:'relative' }}>
