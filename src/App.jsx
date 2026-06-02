@@ -150,8 +150,6 @@ const Styles = () => (
     .trow { transition: background .12s ease; }
     .trow:hover td { background: ${C.s2}; }
 
-    .nav-item { transition: color .14s; }
-    .nav-item:hover { color: ${C.tx} !important; }
   `}</style>
 );
 
@@ -283,34 +281,10 @@ const Landing = ({ onLaunch }) => {
     { n:'03', icon:Calculator,title:'Valuation Engine', desc:"Feed normalised listing data into your price-estimation model — or use AutoPulse's built-in cohort valuator with confidence bands." },
     { n:'04', icon:Eye,       title:'Inventory Watch',  desc:'Monitor competitor dealer stock on a schedule. Get alerted on price drops, new arrivals, or sudden sell-downs.' },
   ];
-  const tickers = ['12,438 Active Listings','RM 68.5k Median Price','94,200 km Avg Mileage','13 Regions Tracked','847 Dealers Monitored','4× Daily Refresh','420K+ Records Indexed','Apify-Powered Pipeline'];
-  const pipeline = ['Mudah.my','Apify Actor','Normalise','Time Series','AutoPulse'];
+  const tickers = ['12,438 Active Listings','RM 68.5k Median Price','94,200 km Avg Mileage','13 Regions Tracked','847 Dealers Monitored','4× Daily Refresh','420K+ Records Indexed'];
 
   return (
     <div style={{ background:C.bg, color:C.tx, minHeight:'100vh' }}>
-
-      {/* ── Nav ── */}
-      <nav style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'0 48px', height:58, borderBottom:`1px solid ${C.brd}`, position:'sticky', top:0, zIndex:100, background:C.bg }}>
-        <Row style={{ gap:12 }}>
-          <div style={{ width:32, height:32, background:C.amb, display:'flex', alignItems:'center', justifyContent:'center', position:'relative', overflow:'hidden' }}>
-            <Gauge style={{ width:17, height:17, color:'#fff' }} />
-          </div>
-          <div>
-            <div style={{ fontSize:14, fontWeight:700, letterSpacing:'0.14em', textTransform:'uppercase', color:C.tx }}>AutoPulse</div>
-            <div style={{ fontSize:8, color:C.amb, fontWeight:600, letterSpacing:'0.2em', textTransform:'uppercase' }}>MY · APEX INTELLIGENCE</div>
-          </div>
-        </Row>
-
-        <Row style={{ gap:32 }}>
-          {['Features','Pipeline','Pricing'].map(l => (
-            <span key={l} className="nav-item" style={{ fontSize:11, fontWeight:500, color:C.tx2, cursor:'pointer', letterSpacing:'0.1em', textTransform:'uppercase' }}>{l}</span>
-          ))}
-        </Row>
-
-        <button style={{ ...btn, display:'flex', alignItems:'center', gap:8 }} onClick={onLaunch}>
-          Enter Dashboard <ArrowRight style={{ width:12, height:12 }} />
-        </button>
-      </nav>
 
       {/* ── Hero ── */}
       <section style={{ display:'grid', gridTemplateColumns:'1fr 1fr', minHeight:'80vh', alignItems:'center', padding:'0 48px', gap:64, maxWidth:1280, margin:'0 auto' }}>
@@ -395,31 +369,6 @@ const Landing = ({ onLaunch }) => {
         </div>
       </section>
 
-      {/* ── Pipeline ── */}
-      <section style={{ padding:'0 48px 72px', maxWidth:1280, margin:'0 auto' }}>
-        <div style={{ ...card, padding:'36px 44px', background:C.s1 }}>
-          <div style={{ marginBottom:32 }}>
-            <div style={{ ...lbl, color:C.sky, marginBottom:8 }}>Pipeline Architecture</div>
-            <h2 style={{ fontSize:18, fontWeight:700, letterSpacing:'0.06em', textTransform:'uppercase' }}>From classified ad to decision signal.</h2>
-          </div>
-          <div style={{ display:'flex', alignItems:'center' }}>
-            {pipeline.map((n,i,arr) => (
-              <React.Fragment key={i}>
-                <div style={{ textAlign:'center', flexShrink:0 }}>
-                  <div style={{ ...lbl, fontSize:8, color:C.sky, marginBottom:5 }}>Step {String(i+1).padStart(2,'0')}</div>
-                  <div style={{ fontSize:12, fontWeight:700, letterSpacing:'0.06em', textTransform:'uppercase' }}>{n}</div>
-                </div>
-                {i < arr.length-1 && (
-                  <div style={{ flex:1, height:1, background:C.brd, margin:'0 14px', position:'relative', top:2 }}>
-                    <div style={{ position:'absolute', left:'44%', top:'50%', transform:'translateY(-50%)', width:5, height:5, background:C.amb }} className="blink" />
-                  </div>
-                )}
-              </React.Fragment>
-            ))}
-          </div>
-        </div>
-      </section>
-
       {/* ── CTA ── */}
       <section style={{ padding:'0 48px 80px', maxWidth:1280, margin:'0 auto' }}>
         <div style={{ background:C.amb, padding:'52px 56px', display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:28, position:'relative', overflow:'hidden' }}>
@@ -429,7 +378,7 @@ const Landing = ({ onLaunch }) => {
               Ready to<br />Go Live?
             </h2>
             <p style={{ fontSize:13, color:'rgba(255,255,255,0.65)', maxWidth:400, lineHeight:1.8 }}>
-              Paste your Apify token in the Pipeline tab and trigger a real Mudah scrape. 420 demo listings loaded until then.
+              Live data refreshes automatically 4× daily from Mudah.my. Demo data shown until the first scrape completes.
             </p>
           </div>
           <button style={{ ...btn, background:'#000', fontSize:13, padding:'14px 32px', display:'flex', alignItems:'center', gap:10, position:'relative' }} onClick={onLaunch}>
