@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   Activity, AlertCircle, ArrowUpRight, ArrowDownRight, ArrowRight,
-  BarChart3, Bell, Calculator, Car, CheckCircle2, ChevronDown, ChevronLeft,
-  Clock, Database, DollarSign, Download, Eye, Gauge, Globe, Key,
-  Layers, MapPin, Play, Plus, RefreshCw, ShieldCheck,
-  Target, TrendingUp, TrendingDown, Workflow, Zap, Home, Cpu, X
+  Bell, Calculator, Car, CheckCircle2, ChevronDown, ChevronLeft,
+  Clock, DollarSign, Download, Eye, Gauge,
+  Layers, MapPin, Play, Plus,
+  Target, TrendingUp, TrendingDown, Home
 } from 'lucide-react';
 import {
   LineChart, Line, BarChart, Bar, AreaChart, Area, ComposedChart,
@@ -77,13 +77,8 @@ const aFetch = async (url, opts={}) => {
   if (!res.ok) { const t=await res.text(); throw new Error(`${res.status}: ${t.slice(0,140)}`); }
   return res.json();
 };
-const aRun           = (tok,act,inp)  => aFetch(`${BASE}/acts/${encodeURIComponent(act)}/runs?token=${tok}`,{method:'POST',body:JSON.stringify(inp)});
-const aStatus        = (tok,id)       => aFetch(`${BASE}/actor-runs/${id}?token=${tok}`);
-const aData          = (tok,ds,lim)   => aFetch(`${BASE}/datasets/${ds}/items?token=${tok}&limit=${lim}&clean=true`);
-const aLatestRun     = (tok,act)      => aFetch(`${BASE}/acts/${encodeURIComponent(act)}/runs?token=${tok}&status=SUCCEEDED&limit=1`);
-const aListSchedules = (tok)          => aFetch(`${BASE}/schedules?token=${tok}&limit=100`);
-const aCreateSchedule= (tok,body)     => aFetch(`${BASE}/schedules?token=${tok}`,{method:'POST',body:JSON.stringify(body)});
-const aUpdateSchedule= (tok,id,body)  => aFetch(`${BASE}/schedules/${id}?token=${tok}`,{method:'PUT',body:JSON.stringify(body)});
+const aData      = (tok,ds,lim) => aFetch(`${BASE}/datasets/${ds}/items?token=${tok}&limit=${lim}&clean=true`);
+const aLatestRun = (tok,act)    => aFetch(`${BASE}/acts/${encodeURIComponent(act)}/runs?token=${tok}&status=SUCCEEDED&limit=1`);
 
 const CFG = {
   token:    import.meta.env.VITE_APIFY_TOKEN     || '',
@@ -459,7 +454,6 @@ const TABS = [
   { id:'regional',  icon:MapPin,     label:'Regional' },
   { id:'valuation', icon:Calculator, label:'Valuation' },
   { id:'inventory', icon:Eye,        label:'Inventory' },
-  { id:'pipeline',  icon:Workflow,   label:'Pipeline & API' },
 ];
 
 const Sidebar = ({ tab, setTab, collapsed, setCollapsed, isLive, count, onHome }) => (
@@ -992,285 +986,11 @@ const Inventory = ({ listings }) => {
     </div>
   );
 };
-
-// ── PIPELINE ──────────────────────────────────────────────────────────────────
-const PipelineTab = ({ onLiveData }) => {
-  const [phase, setPhase]       = useState('idle'); // idle|running|fetching|done|error
-  const [pct, setPct]           = useState(0);
-  const [error, setError]       = useState(null);
-  const [runId, setRunId]       = useState(null);
-  const [schedule, setSchedule] = useState(null);
-  const [lastRun, setLastRun]   = useState(null);
-  const [log, setLog]   = useState([]);
-  const pollerRef       = useRef(null);
-  const addLog = useCallback((msg, type='info') => setLog(l => [{ msg, type, ts:new Date().toLocaleTimeString() }, ...l.slice(0,28)]), []);
-
-  const configured = !!CFG.token;
-
-  // On mount: fetch latest run + ensure schedule exists
-  useEffect(() => {
-    if (!configured) return;
-    (async () => {
-      try {
-        const runsRes = await aLatestRun(CFG.token, CFG.actorId);
-        const run = runsRes?.data?.items?.[0];
-        if (run) setLastRun(run);
-
-        const schRes = await aListSchedules(CFG.token);
-        const found  = schRes?.data?.items?.find(s =>
-          s.actions?.some(a => a.actorId === CFG.actorId || a.actorId?.endsWith(`/${CFG.actorId.split('/').pop()}`))
-        );
-        if (found) {
-          setSchedule(found);
-        } else {
-          const created = await aCreateSchedule(CFG.token, {
-            name: 'autopulse-mudah',
-            cronExpression: CFG.cron,
-            isEnabled: true,
-            isExclusive: true,
-            timezone: 'Asia/Kuala_Lumpur',
-            actions: [{ type:'RUN_ACTOR', actorId:CFG.actorId,
-              runInput:{ contentType:'application/json; charset=utf-8',
-                body:JSON.stringify({ startUrls:[{url:CFG.searchUrl}], maxItems:CFG.maxItems }) } }]
-          });
-          if (created?.data) { setSchedule(created.data); addLog('Schedule created on Apify', 'success'); }
-        }
-      } catch(e) { addLog(`Init: ${e.message}`, 'error'); }
-    })();
-    return () => clearInterval(pollerRef.current);
-  }, []);
-
-  const fetchDataset = useCallback(async (dsId) => {
-    addLog(`Fetching dataset…`);
-    setPct(92);
-    try {
-      const items = await aData(CFG.token, dsId, CFG.maxItems);
-      if (!Array.isArray(items)) throw new Error('Response is not an array.');
-      const norm = normalize(items);
-      addLog(`Normalised ${norm.length} listings from ${items.length} raw items`, 'success');
-      setPhase('done'); setPct(100);
-      onLiveData(norm);
-    } catch(e) {
-      addLog(`Fetch error: ${e.message}`, 'error');
-      setPhase('error'); setError(e.message);
-    }
-  }, [addLog, onLiveData]);
-
-  const pollRun = useCallback((id) => {
-    let attempts = 0;
-    pollerRef.current = setInterval(async () => {
-      attempts++;
-      setPct(Math.min(90, 15+attempts*7));
-      try {
-        const res    = await aStatus(CFG.token, id);
-        const status = res?.data?.status;
-        const dsId   = res?.data?.defaultDatasetId;
-        addLog(`Status: ${status} · ${res?.data?.stats?.itemsWritten||0} items`);
-        if (status === 'SUCCEEDED') {
-          clearInterval(pollerRef.current);
-          addLog(`Run complete · ${dsId}`, 'success');
-          setPhase('fetching'); fetchDataset(dsId);
-        } else if (['FAILED','ABORTED','TIMED-OUT'].includes(status)) {
-          clearInterval(pollerRef.current);
-          addLog(`Run ${status.toLowerCase()}`, 'error');
-          setPhase('error'); setError(`Actor ${status.toLowerCase()}`);
-        }
-      } catch(e) { addLog(`Poll error: ${e.message}`, 'error'); }
-    }, 6000);
-  }, [addLog, fetchDataset]);
-
-  const triggerNow = async () => {
-    if (!configured) return;
-    clearInterval(pollerRef.current);
-    setPhase('running'); setPct(5); setError(null); setRunId(null); setLog([]);
-    addLog('Triggering manual run…');
-    try {
-      const res = await aRun(CFG.token, CFG.actorId, { startUrls:[{url:CFG.searchUrl}], maxItems:CFG.maxItems });
-      const id  = res?.data?.id;
-      if (!id) throw new Error(res?.error?.message || 'No run ID returned.');
-      addLog(`Run started · ${id}`, 'success');
-      setRunId(id); setPct(15); pollRun(id);
-    } catch(e) {
-      addLog(`Error: ${e.message}`, 'error');
-      setPhase('error'); setError(e.message);
-    }
-  };
-
-  const toggleSchedule = async () => {
-    if (!schedule) return;
-    try {
-      await aUpdateSchedule(CFG.token, schedule.id, { ...schedule, isEnabled:!schedule.isEnabled });
-      setSchedule(s => ({...s, isEnabled:!s.isEnabled}));
-    } catch(e) { addLog(`Schedule update failed: ${e.message}`, 'error'); }
-  };
-
-  const busy = phase === 'running' || phase === 'fetching';
-  const SC   = { idle:C.tx3, running:C.gold, fetching:C.sky, done:C.em, error:C.rose };
-
-  const HISTORY = [
-    {id:'run_0531_06',t:'2026-05-31 06:00',s:'succeeded',r:4203,d:'12m 14s'},
-    {id:'run_0531_00',t:'2026-05-31 00:00',s:'succeeded',r:3987,d:'11m 52s'},
-    {id:'run_0530_18',t:'2026-05-30 18:00',s:'succeeded',r:4118,d:'12m 03s'},
-    {id:'run_0530_12',t:'2026-05-30 12:00',s:'failed',   r:0,   d:'3m 21s'},
-    {id:'run_0530_06',t:'2026-05-30 06:00',s:'succeeded',r:4067,d:'12m 09s'},
-  ];
-
-  return (
-    <div className="si">
-      <Grid cols="3fr 2fr" gap={8} style={{ alignItems:'start' }}>
-        <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-
-          {/* Status card */}
-          <div style={cardP}>
-            <Row style={{ justifyContent:'space-between', alignItems:'flex-start', marginBottom:24 }}>
-              <SectionHead eyebrow="Mudah Scraper" title="Pipeline Status" />
-              <Badge bg={configured?'rgba(0,209,102,0.08)':C.ambL} tc={configured?C.em:C.rose} bc={configured?'rgba(0,209,102,0.25)':C.ambG}>
-                {configured ? <><ShieldCheck style={{width:9,height:9}}/> Connected</> : <><AlertCircle style={{width:9,height:9}}/> No token</>}
-              </Badge>
-            </Row>
-
-            {/* Schedule */}
-            <div style={{ ...card, padding:'14px 16px', marginBottom:16 }}>
-              <Row style={{ justifyContent:'space-between', alignItems:'center' }}>
-                <div>
-                  <div style={{ ...lbl, marginBottom:4 }}>Schedule</div>
-                  <div style={{ fontSize:12, fontWeight:600, ...mono }}>{schedule?.cronExpression || CFG.cron}</div>
-                  {schedule?.nextRunAt && (
-                    <div style={{ fontSize:10, color:C.tx2, marginTop:3 }}>
-                      Next: {new Date(schedule.nextRunAt).toLocaleString()}
-                    </div>
-                  )}
-                </div>
-                {schedule && (
-                  <button onClick={toggleSchedule} style={{ ...ghost, fontSize:9, padding:'4px 12px' }}>
-                    {schedule.isEnabled ? 'Pause' : 'Resume'}
-                  </button>
-                )}
-              </Row>
-            </div>
-
-            {/* Last run */}
-            {lastRun && (
-              <div style={{ ...card, padding:'14px 16px', marginBottom:16 }}>
-                <div style={{ ...lbl, marginBottom:6 }}>Last Completed Run</div>
-                <Row style={{ justifyContent:'space-between' }}>
-                  <span style={{ fontSize:11, color:C.tx2, ...mono }}>{lastRun.id}</span>
-                  <Badge bg="rgba(0,209,102,0.08)" tc={C.em} bc="rgba(0,209,102,0.25)">
-                    <CheckCircle2 style={{width:8,height:8}}/> succeeded
-                  </Badge>
-                </Row>
-                {lastRun.finishedAt && (
-                  <div style={{ fontSize:10, color:C.tx3, marginTop:4 }}>
-                    {new Date(lastRun.finishedAt).toLocaleString()}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Progress bar */}
-            {phase !== 'idle' && (
-              <div style={{ marginBottom:18 }}>
-                <Row style={{ justifyContent:'space-between', marginBottom:6, fontSize:10 }}>
-                  <span style={{ color:SC[phase]||C.tx3, fontWeight:700, letterSpacing:'0.1em', textTransform:'uppercase' }}>{phase}</span>
-                  <span style={{ color:C.tx2, ...mono }}>{pct}%</span>
-                </Row>
-                <div style={{ height:3, background:C.s3 }}>
-                  {busy
-                    ? <div className="stripe" style={{ height:'100%', width:`${pct}%`, transition:'width .5s ease' }} />
-                    : <div style={{ height:'100%', width:`${pct}%`, background:phase==='done'?C.em:C.rose, transition:'width .5s ease' }} />}
-                </div>
-                {error && <div style={{ fontSize:11, color:C.rose, marginTop:8, lineHeight:1.6 }}>{error}</div>}
-              </div>
-            )}
-
-            <Row style={{ gap:8 }}>
-              <button style={{ ...btn, flex:1, display:'flex', alignItems:'center', justifyContent:'center', gap:8, opacity:(busy||!configured)?.5:1, cursor:(busy||!configured)?'not-allowed':'pointer' }}
-                onClick={triggerNow} disabled={busy||!configured}>
-                {busy ? <><RefreshCw style={{width:13,height:13}} className="spin"/>Running…</> : <><Play style={{width:13,height:13}}/>Run Now</>}
-              </button>
-              {phase !== 'idle' && (
-                <button style={{ ...ghost, display:'flex', alignItems:'center', gap:6 }} onClick={()=>{ clearInterval(pollerRef.current); setPhase('idle'); setPct(0); setError(null); setLog([]); }}>
-                  <X style={{ width:11, height:11 }} /> Reset
-                </button>
-              )}
-            </Row>
-
-            {!configured && (
-              <div style={{ marginTop:16, padding:'12px 14px', background:C.s2, border:`1px solid ${C.brd}`, borderLeft:`2px solid ${C.gold}`, fontSize:11, color:C.tx2, lineHeight:1.75 }}>
-                <span style={{ color:C.gold, fontWeight:700 }}>Setup: </span>
-                Add <code style={{ background:C.s3, padding:'1px 6px', fontSize:10, ...mono }}>VITE_APIFY_TOKEN</code> to your Vercel environment variables.
-              </div>
-            )}
-          </div>
-
-          {/* Run history */}
-          <div style={cardP}>
-            <SectionHead eyebrow="Last 5 runs" title="Run History" style={{ marginBottom:16 }} />
-            <table style={{ width:'100%', fontSize:11, borderCollapse:'collapse' }}>
-              <thead><tr>{['Run ID','Time','Status','Records','Duration'].map(h=><th key={h} style={{...lbl,fontSize:8,padding:'5px 8px',textAlign:['Records','Duration'].includes(h)?'right':'left',borderBottom:`1px solid ${C.brd}`}}>{h}</th>)}</tr></thead>
-              <tbody>
-                {HISTORY.map(r => (
-                  <tr key={r.id} className="trow" style={{ borderBottom:`1px solid ${C.brd}` }}>
-                    <td style={{padding:'7px 8px',color:C.tx3,...mono,fontSize:10}}>{r.id}</td>
-                    <td style={{padding:'7px 8px',color:C.tx2,fontSize:11}}>{r.t}</td>
-                    <td style={{padding:'7px 8px'}}><Badge bg={r.s==='succeeded'?'rgba(0,209,102,0.08)':'rgba(255,48,64,0.08)'} tc={r.s==='succeeded'?C.em:C.rose} bc="transparent">{r.s==='succeeded'?<CheckCircle2 style={{width:8,height:8}}/>:<AlertCircle style={{width:8,height:8}}/>} {r.s}</Badge></td>
-                    <td style={{padding:'7px 8px',textAlign:'right',...mono}}>{r.r.toLocaleString()}</td>
-                    <td style={{padding:'7px 8px',textAlign:'right',color:C.tx2,...mono}}>{r.d}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-          {/* Data flow */}
-          <div style={cardP}>
-            <SectionHead eyebrow="Live state" title="Data Flow" style={{ marginBottom:18 }} />
-            {[{ic:Globe,l:'Mudah.my',s:'Source reachable'},{ic:Workflow,l:'Apify Actor',s:phase==='running'?'Running…':phase==='done'?'Complete':phase==='error'?'Failed':'Idle'},{ic:Cpu,l:'Normalizer',s:'Field mapper ready'},{ic:Database,l:'Dataset',s:runId||'Awaiting run'},{ic:BarChart3,l:'Dashboard',s:'Live'}].map((n,i,arr) => (
-              <div key={i} style={{ position:'relative' }}>
-                <Row style={{ gap:12, padding:'10px 0' }}>
-                  <div style={{ width:34, height:34, background:C.s3, border:`1px solid ${C.brd}`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, borderRadius:2 }}>
-                    <n.ic style={{ width:15, height:15, color:C.amb }} />
-                  </div>
-                  <div style={{ flex:1, minWidth:0 }}>
-                    <div style={{ fontSize:12, fontWeight:700 }}>{n.l}</div>
-                    <div style={{ fontSize:10, color:C.tx2, marginTop:2, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', ...mono }}>{n.s}</div>
-                  </div>
-                  <div style={{ width:6, height:6, borderRadius:'50%', background:C.em }} className="blink" />
-                </Row>
-                {i < arr.length-1 && <div style={{ position:'absolute', left:16, top:44, width:1, height:12, background:C.brd }} />}
-              </div>
-            ))}
-          </div>
-
-          {/* Run log */}
-          <div style={{ ...cardP, maxHeight:300, display:'flex', flexDirection:'column' }}>
-            <Row style={{ justifyContent:'space-between', marginBottom:12 }}>
-              <Label>Run Log</Label>
-              {log.length > 0 && <button style={{ ...ghost, fontSize:9, padding:'3px 8px' }} onClick={()=>setLog([])}>Clear</button>}
-            </Row>
-            <div style={{ overflowY:'auto', flex:1, ...mono, fontSize:10 }}>
-              {log.length === 0 && <div style={{ color:C.tx3, fontStyle:'italic' }}>Awaiting run…</div>}
-              {log.map((entry,i) => (
-                <div key={i} style={{ display:'flex', gap:8, padding:'4px 0', borderBottom:`1px solid ${C.brd}`, alignItems:'flex-start' }}>
-                  <span style={{ color:C.tx3, flexShrink:0 }}>{entry.ts}</span>
-                  <span style={{ color:entry.type==='error'?C.rose:entry.type==='success'?C.em:C.tx2, flex:1, lineHeight:1.5 }}>{entry.msg}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </Grid>
-    </div>
-  );
-};
-
 // ── DASHBOARD ─────────────────────────────────────────────────────────────────
 const TITLES = {
   overview:'Overview', pricing:'Pricing Benchmarks', trends:'Market Trends',
   regional:'Regional Analysis', valuation:'Valuation Tool',
-  inventory:'Inventory Monitor', pipeline:'Pipeline & Apify API',
+  inventory:'Inventory Monitor',
 };
 const DESCS = {
   overview:"Bird's-eye view of the Malaysian used-car market.",
@@ -1279,7 +999,6 @@ const DESCS = {
   regional:'Compare all 13 Malaysian states and territories.',
   valuation:'Estimate fair-market value with confidence bands.',
   inventory:'Watch competitor dealers and track inventory changes.',
-  pipeline:'Configure Apify scraper and trigger live data ingestion.',
 };
 
 const Dashboard = ({ onHome, liveListings, setLiveListings }) => {
@@ -1313,7 +1032,6 @@ const Dashboard = ({ onHome, liveListings, setLiveListings }) => {
     regional:  <Regional   listings={listings} />,
     valuation: <Valuation  listings={listings} />,
     inventory: <Inventory  listings={listings} />,
-    pipeline:  <PipelineTab onLiveData={setLiveListings} />,
   };
 
   return (
@@ -1331,9 +1049,6 @@ const Dashboard = ({ onHome, liveListings, setLiveListings }) => {
               {isLive?<><div style={{width:5,height:5,background:C.em,borderRadius:'50%'}} className="blink"/>Live · {listings.length}</>:<><AlertCircle style={{width:9,height:9}}/> Demo data</>}
             </Badge>
             <Badge bg={C.s3} tc={C.tx2} bc={C.brd}><Clock style={{width:9,height:9}}/> Updated 2h ago</Badge>
-            <button style={{ ...ghost, display:'flex', alignItems:'center', gap:6, fontSize:10 }} onClick={()=>setTab('pipeline')}>
-              <Zap style={{ width:10, height:10, color:C.amb }} /> Go live
-            </button>
           </Row>
         </div>
         <div style={{ flex:1, padding:16, overflowY:'auto' }}>
