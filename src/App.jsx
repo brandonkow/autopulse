@@ -3,7 +3,7 @@ import {
   Activity, AlertCircle, ArrowUpRight, ArrowDownRight, ArrowRight,
   Bell, Calculator, Car, CheckCircle2, ChevronDown, ChevronLeft,
   Clock, DollarSign, Download, Eye, Gauge,
-  Layers, MapPin, Play, Plus,
+  Layers, MapPin, Plus,
   Target, TrendingUp, TrendingDown, Home
 } from 'lucide-react';
 import {
@@ -287,41 +287,35 @@ const Landing = ({ onLaunch }) => {
     <div style={{ background:C.bg, color:C.tx, minHeight:'100vh' }}>
 
       {/* ── Hero ── */}
-      <section style={{ display:'grid', gridTemplateColumns:'1fr 1fr', minHeight:'80vh', alignItems:'center', padding:'0 48px', gap:64, maxWidth:1280, margin:'0 auto' }}>
+      <section style={{ display:'grid', gridTemplateColumns:'1fr 1fr', minHeight:'100vh', alignItems:'center', padding:'0 48px', gap:64, maxWidth:1280, margin:'0 auto' }}>
 
         <div>
-          <div className="e0" style={{ display:'flex', alignItems:'center', gap:10, marginBottom:20 }}>
-            <div style={{ width:6, height:6, background:C.em, borderRadius:'50%' }} className="blink" />
-            <Badge bg="rgba(0,209,102,0.08)" tc={C.em} bc="rgba(0,209,102,0.25)">Apify Mudah Scraper · Live</Badge>
-          </div>
+          <div className="e0" style={{ ...lbl, color:C.amb, marginBottom:20 }}>Malaysia · Used Car Intelligence</div>
 
-          <h1 className="e1" style={{ fontSize:'clamp(40px,5.5vw,72px)', fontWeight:700, lineHeight:1.0, letterSpacing:'0.02em', textTransform:'uppercase', marginBottom:16 }}>
+          <h1 className="e1" style={{ fontSize:'clamp(44px,5.5vw,76px)', fontWeight:700, lineHeight:1.0, letterSpacing:'0.02em', textTransform:'uppercase', marginBottom:20 }}>
             Zero to<br />
             <span style={{ color:C.amb }}>Insight.</span>
           </h1>
-          <div className="e1" style={{ fontSize:'clamp(16px,2vw,22px)', fontWeight:300, color:C.tx2, letterSpacing:'0.12em', textTransform:'uppercase', marginBottom:28 }}>
-            Malaysia's Used-Car Market Intelligence
+          <div className="e2" style={{ fontSize:'clamp(14px,1.6vw,18px)', fontWeight:300, color:C.tx2, letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:28 }}>
+            Real-time market intelligence for the Malaysian used-car market.
           </div>
 
-          <p className="e2" style={{ fontSize:14, color:C.tx2, lineHeight:1.85, maxWidth:480, marginBottom:36, fontWeight:400 }}>
-            AutoPulse ingests Mudah.my listings via Apify, normalises raw classifieds into clean time-series data, and delivers pricing strategy and competitor intelligence at race speed.
+          <p className="e3" style={{ fontSize:14, color:C.tx2, lineHeight:1.9, maxWidth:440, marginBottom:40, fontWeight:400 }}>
+            Live listings from Mudah.my, normalised into clean pricing data and competitive intelligence — refreshed automatically 4× daily.
           </p>
 
-          <Row className="e3" style={{ gap:12, flexWrap:'wrap' }}>
+          <Row className="e4" style={{ gap:12, flexWrap:'wrap', marginBottom:52 }}>
             <button style={{ ...btn, display:'flex', alignItems:'center', gap:8 }} onClick={onLaunch}>
               Launch Dashboard <ArrowRight style={{ width:13, height:13 }} />
-            </button>
-            <button style={{ ...ghost, display:'flex', alignItems:'center', gap:8 }}>
-              <Play style={{ width:11, height:11 }} /> 90-sec Tour
             </button>
           </Row>
 
           {/* Spec strip */}
-          <div className="e4" style={{ display:'flex', gap:0, marginTop:44, borderTop:`1px solid ${C.brd}` }}>
-            {[['420K+','Records'],['4×','Daily sync'],['13','Regions'],['847','Dealers']].map(([v,l],i) => (
-              <div key={i} style={{ padding:'14px 24px 0', borderRight: i<3?`1px solid ${C.brd}`:'none' }}>
-                <div style={{ fontSize:20, fontWeight:700, color:C.tx, ...mono }}>{v}</div>
-                <div style={{ ...lbl, marginTop:3 }}>{l}</div>
+          <div style={{ display:'flex', gap:0, borderTop:`1px solid ${C.brd}` }}>
+            {[['420K+','Records'],['4×','Daily'],['13','Regions'],['847','Dealers']].map(([v,l],i) => (
+              <div key={i} style={{ padding:'16px 28px 0', borderRight: i<3?`1px solid ${C.brd}`:'none' }}>
+                <div style={{ fontSize:22, fontWeight:700, color:C.tx, ...mono }}>{v}</div>
+                <div style={{ ...lbl, marginTop:4 }}>{l}</div>
               </div>
             ))}
           </div>
