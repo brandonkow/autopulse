@@ -1252,7 +1252,7 @@ export default function Framework({ onNavigate }) {
         <p className="reveal reveal-delay-2">The market is full of research houses selling data. There is only one firm that can sell your experience, your network, and your ability to tell a client what to do — not just what is happening.</p>
         <div className="reveal reveal-delay-3">
           <button className="btn-primary" onClick={() => onNavigate('playbook')}>Open the Implementation Playbook</button>
-          <button className="btn-outline" onClick={() => window.print()}>Download Framework PDF</button>
+          <button className="btn-outline" onClick={() => onNavigate('standards')}>Read the Operating Standard</button>
         </div>
         <div style={{ marginTop: 80, fontFamily: "'DM Mono', monospace", fontSize: 9, letterSpacing: '0.2em', color: 'rgba(247,243,236,0.2)', textTransform: 'uppercase' }} className="reveal reveal-delay-4">
           Proprietary Framework · For Internal Strategic Use · Not For Distribution

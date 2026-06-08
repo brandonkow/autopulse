@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
-const CSS = `
+export const CSS = `
   :root {
     --paper: #FAFAF7;
     --pb-ink: #1A1A1A;
@@ -731,7 +731,10 @@ export default function Playbook({ onNavigate }) {
         <div className="toc-logo">
           <div className="toc-logo-main">The Advisory<br />Playbook</div>
           <div className="toc-logo-sub">Internal · Confidential</div>
-          <button className="toc-back" onClick={() => onNavigate('framework')}>← Part I — The Framework</button>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 18 }}>
+            <button className="toc-back" style={{ marginTop: 0 }} onClick={() => onNavigate('framework')}>← Part I — The Framework</button>
+            <button className="toc-back" style={{ marginTop: 0 }} onClick={() => onNavigate('standards')}>Part III — The Standard →</button>
+          </div>
         </div>
         {toc.map((grp) => (
           <React.Fragment key={grp.group}>

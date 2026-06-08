@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Framework from './Framework.jsx';
 import Playbook from './Playbook.jsx';
+import Standards from './Standards.jsx';
 
 export default function App() {
   const [view, setView] = useState('framework');
@@ -25,6 +26,7 @@ export default function App() {
     <div style={{ opacity: fade ? 0 : 1, transition: 'opacity .28s ease' }}>
       {view === 'framework' && <Framework onNavigate={go} />}
       {view === 'playbook' && <Playbook onNavigate={go} />}
+      {view === 'standards' && <Standards onNavigate={go} />}
     </div>
   );
 }
