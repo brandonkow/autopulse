@@ -1,26 +1,27 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 
 // ── PALETTE ───────────────────────────────────────────────────────────────────
-const BG="#07090F", PANEL="#0C1224", PANEL_S="#111828", BORDER="#1E2D45";
-const FG="#E8E4DC", FG_DIM="#8A7E70", FG_MUTE="#4A4438";
-const GOLD="#C4922A", GOLD_B="#E0B030", GOLD_DIM="rgba(196,146,42,.12)";
-const UP="#5BAD7A", DOWN="#C85858", AMBER="#D4A020";
+const BG="#FAF9F6", SURFACE="#FFFFFF", SURFACE_S="#F3F1EC";
+const NAVY_SECTION="#1B3356";
+const BORDER="#E2DDD6", BORDER_L="#EBE8E2";
+const INK="#1A2130", INK_S="#485870", INK_M="#8B98A8", INK_F="#C4CAD4";
+const NAVY="#1B3356", NAVY_L="#24406C", NAVY_DIM="rgba(27,51,86,.07)";
+const GOLD="#A87928", GOLD_B="#C09520", GOLD_DIM="rgba(168,121,40,.08)";
+const UP="#276749", DOWN="#B0392D", AMBER="#9A6B18";
 
 // ── TIMING ────────────────────────────────────────────────────────────────────
-const SCATTER_DUR=520, ASSEMBLE_DUR=620, SCROLL_DUR=720;
+const SCATTER_DUR=240, ASSEMBLE_DUR=360, SCROLL_DUR=580;
+
+// ── DOMAIN COLOR MAP ──────────────────────────────────────────────────────────
+const DC={
+  "Scope":     {bg:"rgba(27,51,86,.06)",  bd:"rgba(27,51,86,.18)",  tx:NAVY},
+  "Evidence":  {bg:GOLD_DIM,             bd:"rgba(168,121,40,.2)", tx:GOLD},
+  "AI Use":    {bg:"rgba(39,103,73,.07)", bd:"rgba(39,103,73,.2)",  tx:UP},
+  "Disclosure":{bg:"rgba(176,57,45,.06)", bd:"rgba(176,57,45,.2)",  tx:DOWN},
+  "Process":   {bg:"rgba(154,107,24,.06)",bd:"rgba(154,107,24,.2)", tx:AMBER},
+};
 
 // ── DATA ──────────────────────────────────────────────────────────────────────
-const BOOT_SEQ=[
-  {t:"SYS", m:"Meridian RE Advisory Platform — MER.ADV.MY", c:GOLD},
-  {t:"INIT",m:"Loading guardrail engine — MAS-GUARD-001 v1.0",c:FG_DIM},
-  {t:"INIT",m:"Indexing report types — 7 MER families located",c:FG_DIM},
-  {t:"INIT",m:"Validating domain matrix — 22 guardrails across 5 domains",c:FG_DIM},
-  {t:"INIT",m:"Mounting standards ref — RICS Red Book 2025 · BOVEAP",c:FG_DIM},
-  {t:"OK",  m:"Advisory engine online — regional scope: Malaysia (MY)",c:GOLD_B},
-  {t:"OK",  m:"Jurisdiction flags active — Act 242 · NLC 1965 · JPPH",c:UP},
-  {t:"SYS", m:"Platform ready — awaiting operator",c:GOLD},
-];
-
 const MER_TYPES=[
   {code:"MER-MKT",type:"Market Entry / Market Study",pages:"15–30",sections:[1,2,3,4,5,6,8],tag:"Most Used",
    desc:"End-to-end market entry study. Covers primary market area delineation, supply/demand analysis, competitive landscape, macro & regulatory environment, financial analysis, and implementation roadmap."},
@@ -63,27 +64,6 @@ const GUARDRAILS=[
   {code:"G-PROC-05", domain:"Process",  sev:"High",   title:"Escalation Triggers"},
 ];
 
-const DC={
-  "Scope":    {bg:"rgba(28,53,83,.32)",  bd:"rgba(28,53,83,.7)",   tx:"#8AAABF"},
-  "Evidence": {bg:GOLD_DIM,             bd:"rgba(196,146,42,.35)", tx:GOLD_B},
-  "AI Use":   {bg:"rgba(91,173,122,.1)", bd:"rgba(91,173,122,.3)", tx:UP},
-  "Disclosure":{bg:"rgba(200,88,88,.1)",bd:"rgba(200,88,88,.3)",  tx:"#E08080"},
-  "Process":  {bg:"rgba(212,160,32,.1)", bd:"rgba(212,160,32,.3)", tx:AMBER},
-};
-
-const TICKER_DATA=[
-  {label:"KLCC",val:"RM1,820 psf",chg:"+0.8%",up:true},
-  {label:"MID VALLEY",val:"RM680 psf",chg:"+1.2%",up:true},
-  {label:"SUBANG JAYA",val:"RM520 psf",chg:"-0.3%",up:false},
-  {label:"MELAKA",val:"RM250K avg",chg:"+4.7% YoY",up:true},
-  {label:"PENANG ISLAND",val:"RM680 psf",chg:"+2.1%",up:true},
-  {label:"JOHOR BAHRU",val:"RM380 psf",chg:"+0.5%",up:true},
-  {label:"KOTA KINABALU",val:"RM440 psf",chg:"+1.8%",up:true},
-  {label:"IPOH",val:"RM220 psf",chg:"-0.6%",up:false},
-  {label:"MONT KIARA",val:"RM780 psf",chg:"+1.5%",up:true},
-  {label:"BUKIT JALIL",val:"RM620 psf",chg:"+2.3%",up:true},
-];
-
 const LP_SECTIONS=[
   {id:"lp-s0",num:"S00",label:"ACCESS"},
   {id:"lp-s1",num:"S01",label:"REPORT SUITE"},
@@ -103,105 +83,56 @@ const REPORT_SECTIONS=[
   {n:8,title:"Disclaimers & Sign-Off",cond:false,desc:"Mandatory disclaimer block · Guardrail compliance checklist · Dual sign-off (Lead Consultant + Reviewing Advisor)"},
 ];
 
+const G_CHECKS=[
+  "G-01 Report type code assigned; section structure matches MER suite table",
+  "G-02 Executive Summary findings each traceable to a body section",
+  "G-03 All quantitative claims attributed to a named Tier 1 or Tier 2 source",
+  "G-04 AI limitation flags reviewed by human consultant for §3.4, §3.5, §7.1, §7.2",
+  "G-05 Risk Register contains ≥ 5 risks, each scored Likelihood × Impact (1–5)",
+  "G-06 Mandatory Disclaimer Block (§8) present and fully populated",
+  "G-07 No certified value language used anywhere in the report",
+  "G-08 Financial projections carry forward-looking statement language",
+  "G-09 Key Assumptions Register numbered and complete",
+  "G-10 Report classified CONFIDENTIAL with correct client name and engagement ref",
+  "G-11 Reviewed-by field populated — different person from Lead Consultant",
+  "G-12 AI disclosure statement included in Section 8",
+];
+const G_HUMAN=[3,10];
+
 // ── CSS ───────────────────────────────────────────────────────────────────────
 const CSS=`
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap');
 @keyframes bootFadeOut{0%{opacity:1;visibility:visible}100%{opacity:0;visibility:hidden}}
-@keyframes bootRingSpin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
-@keyframes bootRingSpinR{from{transform:rotate(0deg)}to{transform:rotate(-360deg)}}
-@keyframes bootCoreThrob{0%,100%{transform:scale(1);box-shadow:0 0 24px rgba(196,146,42,.35)}50%{transform:scale(1.08);box-shadow:0 0 44px rgba(196,146,42,.6)}}
-@keyframes bootLineIn{0%{opacity:0;transform:translateX(-6px)}100%{opacity:1;transform:translateX(0)}}
-@keyframes bootScan{0%{transform:translateY(0)}100%{transform:translateY(100%)}}
-@keyframes goldPulse{0%,100%{opacity:.5}50%{opacity:1}}
-@keyframes tickerScroll{from{transform:translateX(0)}to{transform:translateX(-50%)}}
-@keyframes toastIn{from{opacity:0;transform:translateX(50px)}to{opacity:1;transform:translateX(0)}}
+@keyframes bootReveal{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
-@keyframes caretBlink{0%,49%{opacity:1}50%,100%{opacity:0}}
-@keyframes hintFloat{0%,100%{transform:translateX(-50%) translateY(0)}50%{transform:translateX(-50%) translateY(3px)}}
-@keyframes revealUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
-body{margin:0;font-family:'Inter',sans-serif;color:${FG};background:${BG};-webkit-font-smoothing:antialiased}
-::-webkit-scrollbar{width:5px}
-::-webkit-scrollbar-track{background:#0A0C18}
-::-webkit-scrollbar-thumb{background:${BORDER};border-radius:0}
-::-webkit-scrollbar-thumb:hover{background:#2A3D5A}
-.btn-o{transition:all .15s ease;cursor:pointer;font-family:'IBM Plex Mono',monospace}
-.btn-o:hover{border-color:${GOLD}!important;color:${GOLD}!important}
-.mer-card{transition:border-color .22s,box-shadow .25s,transform .25s}
-.mer-card:hover{transform:translateY(-2px);border-color:rgba(196,146,42,.45)!important;box-shadow:0 0 0 1px rgba(196,146,42,.07),0 22px 44px rgba(0,0,0,.45)}
-.lp-card{transition:border-color .22s,background .22s,transform .25s;cursor:default}
-.lp-card:hover{border-color:${GOLD}!important;background:rgba(196,146,42,.04)!important;transform:translateY(-2px)}
+@keyframes slideUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+@keyframes toastIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+@keyframes dotPulse{0%,100%{opacity:.35}50%{opacity:1}}
+@keyframes hintFloat{0%,100%{transform:translateX(-50%) translateY(0px)}50%{transform:translateX(-50%) translateY(5px)}}
+body{margin:0;font-family:'Inter',sans-serif;color:${INK};background:${BG};-webkit-font-smoothing:antialiased}
+::-webkit-scrollbar{width:6px}
+::-webkit-scrollbar-track{background:${SURFACE_S}}
+::-webkit-scrollbar-thumb{background:${BORDER};border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:${INK_F}}
+.card,.mer-card{transition:box-shadow .25s,transform .25s}
+.card:hover,.mer-card:hover{box-shadow:0 8px 30px rgba(26,33,48,.1);transform:translateY(-2px)}
+.lp-card{transition:box-shadow .25s,border-color .25s,transform .25s;cursor:default}
+.lp-card:hover{box-shadow:0 8px 30px rgba(26,33,48,.1);border-color:${GOLD}!important;transform:translateY(-2px)}
 .lp-card:hover .lp-num{color:${GOLD_B}!important}
-.lp-stat{transition:background .2s;cursor:default}
-.lp-stat:hover .lp-stat-n{color:${GOLD}!important}
 .gr-row{transition:background .15s;cursor:pointer}
-.gr-row:hover{background:rgba(196,146,42,.05)!important}
-.lp-ticker-item{transition:opacity .15s,filter .15s}
-.lp-ticker:hover .lp-ticker-item{opacity:.4}
-.lp-ticker:hover .lp-ticker-item:hover{opacity:1;filter:brightness(1.3)}
-.lp-ticker:hover .lp-ticker-track{animation-play-state:paused}
-.hold-btn{transition:border-color .15s,box-shadow .2s}
-.hold-btn:hover{border-color:${GOLD}!important;box-shadow:0 0 24px rgba(196,146,42,.15)!important}
-input:focus{outline:none;border-color:${GOLD}!important}
-input::placeholder{color:${FG_MUTE}}
-.lp-fit{height:calc(100vh - 54px);max-height:calc(100vh - 54px);display:flex;flex-direction:column;overflow:hidden}
-#lp-s0{height:calc(100vh - 94px);max-height:calc(100vh - 94px)}
-.lp-fit>section{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;justify-content:flex-start;width:100%;box-sizing:border-box;padding-top:clamp(14px,2.2vh,30px)!important;padding-bottom:clamp(14px,2.2vh,30px)!important}
-.lp-fit>section>*{flex:0 1 auto;min-height:0}
+.gr-row:hover{background:${GOLD_DIM}!important}
+.btn-primary{transition:background .15s;cursor:pointer}
+.btn-primary:hover{background:${NAVY_L}!important}
+.btn-outline{transition:border-color .15s,color .15s;cursor:pointer}
+.btn-outline:hover{border-color:${GOLD}!important;color:${GOLD}!important}
+input:focus{outline:none;border-color:${NAVY}!important;box-shadow:0 0 0 3px ${NAVY_DIM}!important}
+input::placeholder{color:${INK_F}}
+.lp-fit{height:calc(100vh - 60px);max-height:calc(100vh - 60px);display:flex;flex-direction:column;overflow:hidden}
+#lp-s0{height:calc(100vh - 60px);max-height:calc(100vh - 60px)}
+.lp-fit>section{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;justify-content:flex-start;width:100%;box-sizing:border-box;padding:clamp(24px,3.5vh,52px) 0!important}
 `;
 
 // ── HELPERS ───────────────────────────────────────────────────────────────────
-function Grain({o=.025}){
-  return(
-    <div aria-hidden style={{position:"absolute",inset:0,pointerEvents:"none",zIndex:0,opacity:o,
-      backgroundImage:`url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")`,
-      backgroundSize:"220px 220px"}}/>
-  );
-}
-function Grid(){
-  return(
-    <div aria-hidden style={{position:"absolute",inset:0,zIndex:0,
-      backgroundImage:`linear-gradient(${PANEL} 1px,transparent 1px),linear-gradient(90deg,${PANEL} 1px,transparent 1px)`,
-      backgroundSize:"52px 52px",
-      maskImage:"radial-gradient(ellipse 58% 65% at 50% 50%,#000 20%,transparent 80%)",
-      WebkitMaskImage:"radial-gradient(ellipse 58% 65% at 50% 50%,#000 20%,transparent 80%)",
-      opacity:.6,pointerEvents:"none"}}/>
-  );
-}
-function GoldBar(){
-  return(
-    <div aria-hidden style={{position:"absolute",top:0,left:0,right:0,height:2,zIndex:2,
-      background:`linear-gradient(90deg,transparent,${GOLD} 30%,${GOLD} 70%,transparent)`,opacity:.7}}/>
-  );
-}
-function Mono({children,style={}}){
-  return <span style={{fontFamily:"'IBM Plex Mono',monospace",...style}}>{children}</span>;
-}
-function SecTag({num,label}){
-  return(
-    <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9.5,color:FG_MUTE,
-      letterSpacing:"2.5px",fontWeight:600,marginBottom:18,
-      display:"flex",alignItems:"center",gap:10,textTransform:"uppercase"}}>
-      <span style={{color:GOLD}}>[</span>
-      <span style={{color:GOLD,fontWeight:700}}>{num}</span>
-      <span style={{color:FG_MUTE}}>·</span>
-      <span>{label}</span>
-      <span style={{color:GOLD}}>]</span>
-      <span style={{flex:1,height:1,background:BORDER}}/>
-    </div>
-  );
-}
-function SevPill({sev}){
-  const c=sev==="Critical"?DOWN:sev==="High"?GOLD:AMBER;
-  const bg=sev==="Critical"?"rgba(200,88,88,.12)":sev==="High"?GOLD_DIM:"rgba(212,160,32,.08)";
-  const bd=sev==="Critical"?"rgba(200,88,88,.3)":sev==="High"?"rgba(196,146,42,.3)":"rgba(212,160,32,.2)";
-  return(
-    <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9,fontWeight:600,
-      padding:"2px 8px",letterSpacing:"1px",background:bg,color:c,border:`1px solid ${bd}`}}>
-      {sev}
-    </span>
-  );
-}
-
-// ── HOOKS ─────────────────────────────────────────────────────────────────────
 function useInView(t=.05){
   const r=useRef(null),[v,sv]=useState(false);
   useEffect(()=>{
@@ -221,84 +152,92 @@ function useWide(bp=960){
   return w;
 }
 
-// morph helpers
 function getMorphBlocks(s){return s?Array.from(s.querySelectorAll("[data-morph]")).slice(0,12):[]}
-function clearMorph(el){el.style.transition=el.style.transform=el.style.opacity=el.style.filter=el.style.willChange="";}
+function clearMorph(el){el.style.transition=el.style.transform=el.style.opacity=el.style.willChange="";}
+
+// ── SECTION LABEL ─────────────────────────────────────────────────────────────
+function SectionLabel({num,label}){
+  return(
+    <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:28}}>
+      <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:GOLD,fontWeight:700,letterSpacing:"1.5px"}}>{num}</span>
+      <span style={{width:20,height:1,background:GOLD,opacity:.6,display:"inline-block"}}/>
+      <span style={{fontFamily:"'Inter',sans-serif",fontSize:11,color:INK_M,fontWeight:600,letterSpacing:"2.5px",textTransform:"uppercase"}}>{label}</span>
+    </div>
+  );
+}
+
+// ── SEV PILL ──────────────────────────────────────────────────────────────────
+function SevPill({sev}){
+  const map={
+    "Critical":{bg:"rgba(176,57,45,.07)",bd:"rgba(176,57,45,.2)",tx:DOWN},
+    "High":    {bg:GOLD_DIM,            bd:"rgba(168,121,40,.2)",tx:GOLD},
+    "Medium":  {bg:"rgba(154,107,24,.06)",bd:"rgba(154,107,24,.18)",tx:AMBER},
+  };
+  const s=map[sev]||map["Medium"];
+  return(
+    <span style={{fontSize:10.5,fontWeight:600,padding:"3px 10px",borderRadius:2,
+      border:`1px solid ${s.bd}`,background:s.bg,color:s.tx,whiteSpace:"nowrap"}}>
+      {sev}
+    </span>
+  );
+}
 
 // ── BOOT SCREEN ───────────────────────────────────────────────────────────────
 function Boot({onDone}){
-  const[rev,setRev]=useState(0),[pct,setPct]=useState(0),[leaving,setLeaving]=useState(false);
+  const[leaving,setLeaving]=useState(false),[pct,setPct]=useState(0);
   const finRef=useRef(false),rafRef=useRef(0),tgtRef=useRef(0);
   const finish=useCallback(()=>{
     if(finRef.current)return;finRef.current=true;
-    setRev(BOOT_SEQ.length);tgtRef.current=100;setLeaving(true);setTimeout(onDone,640);
+    tgtRef.current=100;setLeaving(true);setTimeout(onDone,620);
   },[onDone]);
   useEffect(()=>{
-    if(finRef.current)return;let i=0;
-    const id=setInterval(()=>{
-      if(finRef.current){clearInterval(id);return;}
-      i++;setRev(i);tgtRef.current=(i/BOOT_SEQ.length)*100;
-      if(i>=BOOT_SEQ.length){clearInterval(id);setTimeout(finish,480);}
-    },280);
-    return()=>clearInterval(id);
-  },[finish]);
-  useEffect(()=>{
+    const start=Date.now();
     const tick=()=>{
-      setPct(p=>{const t=tgtRef.current,np=p+(t-p)*.12;return Math.abs(t-np)<.4?t:np;});
+      const elapsed=Date.now()-start;
+      if(!finRef.current){
+        const natural=Math.min(elapsed/2200,1)*92;
+        tgtRef.current=natural;
+      }
       rafRef.current=requestAnimationFrame(tick);
     };
-    rafRef.current=requestAnimationFrame(tick);return()=>cancelAnimationFrame(rafRef.current);
+    rafRef.current=requestAnimationFrame(tick);
+    return()=>cancelAnimationFrame(rafRef.current);
   },[]);
   useEffect(()=>{
-    const k=()=>finish();window.addEventListener("keydown",k);return()=>window.removeEventListener("keydown",k);
+    const lerp=()=>{
+      setPct(p=>{const t=tgtRef.current,np=p+(t-p)*.1;return Math.abs(t-np)<.3?t:np;});
+      rafRef.current=requestAnimationFrame(lerp);
+    };
+    const id=requestAnimationFrame(lerp);return()=>cancelAnimationFrame(id);
+  },[]);
+  useEffect(()=>{
+    const t=setTimeout(finish,2500);
+    return()=>clearTimeout(t);
   },[finish]);
+  useEffect(()=>{
+    const k=()=>finish();
+    window.addEventListener("keydown",k);return()=>window.removeEventListener("keydown",k);
+  },[finish]);
+  const delay=(n)=>({animation:`bootReveal .5s ease ${n*0.1}s both`});
   return(
-    <div onClick={finish} style={{position:"fixed",inset:0,zIndex:9000,background:BG,
+    <div onClick={finish} style={{position:"fixed",inset:0,zIndex:9000,background:SURFACE,
       display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
-      cursor:"pointer",overflow:"hidden",fontFamily:"'IBM Plex Mono',monospace",
+      cursor:"pointer",gap:0,
       animation:leaving?"bootFadeOut .6s ease forwards":"none"}}>
-      <Grid/><Grain o={.03}/>
-      <div aria-hidden style={{position:"absolute",left:0,right:0,height:"38%",zIndex:0,
-        background:`linear-gradient(180deg,transparent,rgba(196,146,42,.025),transparent)`,
-        animation:"bootScan 3.5s linear infinite",pointerEvents:"none"}}/>
-      {/* Emblem */}
-      <div style={{position:"relative",width:132,height:132,marginBottom:40,zIndex:1,
-        display:"flex",alignItems:"center",justifyContent:"center"}}>
-        <div style={{position:"absolute",inset:0,borderRadius:"50%",border:`1px solid ${BORDER}`,
-          borderTopColor:GOLD,borderRightColor:"rgba(196,146,42,.35)",animation:"bootRingSpin 2.4s linear infinite"}}/>
-        <div style={{position:"absolute",inset:16,borderRadius:"50%",border:`1px solid ${BORDER}`,
-          borderBottomColor:GOLD_B,borderLeftColor:"rgba(196,146,42,.3)",animation:"bootRingSpinR 3.1s linear infinite"}}/>
-        <div style={{position:"absolute",inset:33,borderRadius:"50%",
-          border:`1px dashed rgba(196,146,42,.22)`,animation:"bootRingSpin 5s linear infinite"}}/>
-        <div style={{width:52,height:52,borderRadius:"50%",
-          background:`radial-gradient(circle at 38% 34%,rgba(196,146,42,.2),${BG})`,
-          border:`1px solid ${GOLD}`,display:"flex",alignItems:"center",justifyContent:"center",
-          animation:"bootCoreThrob 1.9s ease-in-out infinite"}}>
-          <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:26,fontWeight:700,
-            color:GOLD,letterSpacing:"-1px",textShadow:`0 0 12px rgba(196,146,42,.7)`}}>M</span>
+      <div style={{...delay(0),display:"flex",flexDirection:"column",alignItems:"center",gap:20}}>
+        <div style={{width:72,height:72,borderRadius:"50%",background:NAVY,
+          boxShadow:"0 8px 32px rgba(27,51,86,.2)",
+          display:"flex",alignItems:"center",justifyContent:"center"}}>
+          <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:36,color:"#fff",fontWeight:700,lineHeight:1}}>M</span>
         </div>
-      </div>
-      <div style={{fontSize:10,letterSpacing:"4px",color:GOLD,fontWeight:700,
-        textTransform:"uppercase",marginBottom:32,zIndex:1}}>MERIDIAN RE ADVISORY</div>
-      {/* Log */}
-      <div style={{width:"min(520px,90vw)",zIndex:1,marginBottom:32,
-        border:`1px solid ${BORDER}`,background:PANEL,padding:"16px 20px"}}>
-        {BOOT_SEQ.slice(0,rev).map((line,i)=>(
-          <div key={i} style={{display:"flex",gap:12,fontSize:11,lineHeight:1.8,
-            animation:"bootLineIn .22s ease forwards"}}>
-            <span style={{color:GOLD,minWidth:40,fontWeight:700}}>[{line.t}]</span>
-            <span style={{color:line.c===GOLD||line.c===GOLD_B?line.c:FG_DIM}}>{line.m}</span>
-          </div>
-        ))}
-      </div>
-      {/* Progress */}
-      <div style={{width:"min(520px,90vw)",zIndex:1,background:PANEL,
-        border:`1px solid ${BORDER}`,height:2,position:"relative"}}>
-        <div style={{position:"absolute",left:0,top:0,bottom:0,width:`${pct}%`,
-          background:GOLD,boxShadow:`0 0 8px ${GOLD}`}}/>
-      </div>
-      <div style={{marginTop:12,fontSize:9,color:FG_MUTE,letterSpacing:"2px",zIndex:1}}>
-        {Math.floor(pct)}% · CLICK OR ANY KEY TO SKIP
+        <div style={{textAlign:"center"}}>
+          <div style={{fontFamily:"'Inter',sans-serif",fontSize:13,fontWeight:700,letterSpacing:"4px",color:INK,textTransform:"uppercase",marginBottom:6}}>MERIDIAN RE ADVISORY</div>
+          <div style={{fontFamily:"'Inter',sans-serif",fontSize:11,color:INK_M}}>Consultancy Platform · MAS-GUARD-001 v1.0</div>
+        </div>
+        <div style={{width:"100%",maxWidth:280,height:2,background:BORDER_L,borderRadius:1,overflow:"hidden",marginTop:4}}>
+          <div style={{height:"100%",background:GOLD,width:`${pct}%`,transition:"width .12s ease",borderRadius:1}}/>
+        </div>
+        <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:INK_F,letterSpacing:"0.5px"}}>Click or press any key to continue</div>
       </div>
     </div>
   );
@@ -306,34 +245,32 @@ function Boot({onDone}){
 
 // ── NAV ───────────────────────────────────────────────────────────────────────
 function Nav({page,onBack}){
-  const path={landing:"/",dashboard:"/library",checker:"/tools/guardrail",risk:"/tools/risk"}[page]||"/";
+  const pathLabel=page==="dashboard"?"/ report-library":page==="checker"?"/ guardrail-checker":page==="risk"?"/ risk-scorer":"";
   return(
-    <nav style={{position:"fixed",top:2,left:0,right:0,zIndex:300,height:54,
-      background:"rgba(7,9,15,.92)",backdropFilter:"blur(18px)",
-      borderBottom:`1px solid ${BORDER}`,
-      display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 28px"}}>
-      <div style={{display:"flex",alignItems:"center",gap:22}}>
-        <div style={{display:"flex",alignItems:"center",gap:10}}>
-          <span style={{width:7,height:7,background:GOLD,
-            boxShadow:`0 0 8px ${GOLD}`,animation:"goldPulse 1.8s ease infinite"}}/>
-          <div style={{fontFamily:"'IBM Plex Mono',monospace",fontWeight:700,
-            fontSize:12,letterSpacing:"2.5px",color:FG,textTransform:"uppercase"}}>
-            MERIDIAN<span style={{color:GOLD,margin:"0 6px"}}>·</span>
-            <span style={{color:FG_DIM,fontWeight:500}}>MER.ADV.MY</span>
-          </div>
+    <nav style={{position:"fixed",top:0,left:0,right:0,height:60,zIndex:300,
+      background:"rgba(250,249,246,.96)",backdropFilter:"blur(12px)",
+      WebkitBackdropFilter:"blur(12px)",borderBottom:`1px solid ${BORDER}`,
+      display:"flex",alignItems:"center",justifyContent:"space-between",
+      padding:"0 28px",boxSizing:"border-box"}}>
+      <div style={{display:"flex",alignItems:"center",gap:12}}>
+        <div style={{width:32,height:32,borderRadius:"50%",background:NAVY,
+          display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+          <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:17,color:"#fff",fontWeight:700,lineHeight:1}}>M</span>
         </div>
-        <div style={{display:"flex",gap:18,fontFamily:"'IBM Plex Mono',monospace",
-          fontSize:9.5,color:FG_MUTE,letterSpacing:"1.8px",textTransform:"uppercase",fontWeight:500}}>
-          <span style={{color:FG_DIM}}>SYS:OK</span>
-          <span style={{color:GOLD,fontWeight:700}}>PATH:{path}</span>
-          <span>MAS-GUARD:v1.0</span>
+        <div>
+          <div style={{fontFamily:"'Inter',sans-serif",fontSize:12,color:INK,lineHeight:1.2}}>
+            <span style={{fontWeight:700}}>MERIDIAN</span>
+            <span style={{color:INK_M,fontWeight:400}}> RE ADVISORY</span>
+          </div>
+          {pathLabel&&<div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9,color:INK_M,lineHeight:1,marginTop:2}}>{pathLabel}</div>}
         </div>
       </div>
       {page!=="landing"&&(
-        <button className="btn-o" onClick={onBack} style={{background:"transparent",color:FG,
-          border:`1px solid ${BORDER}`,padding:"7px 16px",fontSize:10,
-          cursor:"pointer",letterSpacing:"2.5px",textTransform:"uppercase",fontWeight:600}}>
-          {page==="dashboard"?"← [Home]":"← [Library]"}
+        <button onClick={onBack} className="btn-outline"
+          style={{fontFamily:"'Inter',sans-serif",fontSize:12,color:INK_S,
+            border:`1px solid ${BORDER}`,background:"transparent",
+            padding:"7px 14px",borderRadius:2,cursor:"pointer",letterSpacing:".3px"}}>
+          {page==="dashboard"?"← Home":"← Library"}
         </button>
       )}
     </nav>
@@ -342,248 +279,192 @@ function Nav({page,onBack}){
 
 // ── TOAST ─────────────────────────────────────────────────────────────────────
 function Toast({msg,onClose}){
-  useEffect(()=>{const t=setTimeout(onClose,3600);return()=>clearTimeout(t);},[]);
   return(
-    <div style={{position:"fixed",bottom:24,right:24,zIndex:9999,background:PANEL_S,
-      border:`1px solid ${GOLD}`,padding:"14px 18px",
-      display:"flex",alignItems:"flex-start",gap:14,
-      boxShadow:`0 0 24px rgba(196,146,42,.2),0 18px 40px rgba(0,0,0,.5)`,
-      animation:"toastIn .4s cubic-bezier(.34,1.4,.64,1) forwards",maxWidth:340}}>
-      <span style={{width:8,height:8,background:GOLD,marginTop:6,flexShrink:0,
-        boxShadow:`0 0 8px ${GOLD}`,animation:"goldPulse 1.6s ease infinite"}}/>
-      <div style={{flex:1}}>
-        <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:GOLD,
-          letterSpacing:"2.5px",fontWeight:700,textTransform:"uppercase",marginBottom:5}}>
-          ✓ TEMPLATE READY
+    <div style={{position:"fixed",bottom:28,right:28,zIndex:9999,
+      background:SURFACE,border:`1px solid ${BORDER}`,padding:"16px 20px",
+      boxShadow:"0 8px 40px rgba(26,33,48,.15)",borderRadius:3,
+      animation:"toastIn .3s ease both",minWidth:260}}>
+      <div style={{display:"flex",alignItems:"flex-start",gap:10}}>
+        <div style={{width:6,height:6,borderRadius:"50%",background:UP,marginTop:4,flexShrink:0}}/>
+        <div style={{flex:1}}>
+          <div style={{fontFamily:"'Inter',sans-serif",fontSize:11,fontWeight:700,color:INK,letterSpacing:"1px",textTransform:"uppercase",marginBottom:4}}>Template Ready</div>
+          <div style={{fontFamily:"'Inter',sans-serif",fontSize:13,color:INK_S}}>{msg}</div>
         </div>
-        <div style={{color:FG,fontSize:12.5,lineHeight:1.5,fontWeight:500}}>{msg}</div>
+        <button onClick={onClose} style={{background:"none",border:"none",color:INK_M,cursor:"pointer",fontSize:16,lineHeight:1,padding:0,marginTop:-2}}>×</button>
       </div>
-      <div onClick={onClose} style={{color:FG_DIM,cursor:"pointer",fontSize:14,
-        fontFamily:"'IBM Plex Mono',monospace",padding:"0 4px"}}>×</div>
     </div>
   );
 }
 
-// ── TICKER ────────────────────────────────────────────────────────────────────
-function Ticker(){
-  const items=[...TICKER_DATA,...TICKER_DATA];
-  return(
-    <div className="lp-ticker" style={{background:PANEL,borderBottom:`1px solid ${BORDER}`,
-      height:40,overflow:"hidden",position:"relative"}}>
-      <div className="lp-ticker-track" style={{display:"flex",alignItems:"center",height:"100%",
-        animation:"tickerScroll 36s linear infinite",whiteSpace:"nowrap",width:"max-content"}}>
-        {items.map((item,i)=>(
-          <div key={i} className="lp-ticker-item" style={{display:"flex",alignItems:"center",
-            gap:10,padding:"0 24px",borderRight:`1px solid ${BORDER}`,height:"100%"}}>
-            <Mono style={{fontSize:10,color:GOLD,letterSpacing:"1.5px",fontWeight:700}}>{item.label}</Mono>
-            <Mono style={{fontSize:11,color:FG,fontWeight:500}}>{item.val}</Mono>
-            <Mono style={{fontSize:10,color:item.up?UP:DOWN,fontWeight:700}}>{item.chg}</Mono>
-          </div>
-        ))}
-      </div>
-      <div aria-hidden style={{position:"absolute",left:0,top:0,bottom:0,width:40,
-        background:`linear-gradient(90deg,${PANEL},transparent)`,pointerEvents:"none",zIndex:1}}/>
-      <div aria-hidden style={{position:"absolute",right:0,top:0,bottom:0,width:40,
-        background:`linear-gradient(-90deg,${PANEL},transparent)`,pointerEvents:"none",zIndex:1}}/>
-    </div>
-  );
-}
-
-// ── HOLD-TO-EXEC BAR ──────────────────────────────────────────────────────────
-function HoldBar({onComplete,command="initiate --platform --region=MY",width=560}){
-  const[p,setP]=useState(0),[holding,setHolding]=useState(false);
-  const rafRef=useRef(0),startRef=useRef(0),doneRef=useRef(false);
-  const dur=900;
-  useEffect(()=>()=>{if(rafRef.current)cancelAnimationFrame(rafRef.current);},[]);
-  const tick=t=>{
-    if(!startRef.current)startRef.current=t;
-    const np=Math.min(1,(t-startRef.current)/dur);
-    setP(np);
-    if(np>=1){doneRef.current=true;setHolding(false);rafRef.current=0;onComplete();return;}
+// ── HOLD BAR ──────────────────────────────────────────────────────────────────
+function HoldBar({onComplete,label="Access the report library",width=520,inverted=false}){
+  const[pct,setPct]=useState(0),[holding,setHolding]=useState(false);
+  const rafRef=useRef(0),startRef=useRef(0),holdDur=2000;
+  const startHold=useCallback(()=>{
+    setHolding(true);startRef.current=Date.now();
+    const tick=()=>{
+      const elapsed=Date.now()-startRef.current;
+      const p=Math.min(elapsed/holdDur*100,100);
+      setPct(p);
+      if(p<100)rafRef.current=requestAnimationFrame(tick);
+      else onComplete();
+    };
     rafRef.current=requestAnimationFrame(tick);
-  };
-  const start=e=>{
-    e.preventDefault();e.stopPropagation();if(doneRef.current)return;
-    setHolding(true);startRef.current=0;rafRef.current=requestAnimationFrame(tick);
-  };
-  const stop=e=>{
-    if(e)e.stopPropagation();
-    if(rafRef.current){cancelAnimationFrame(rafRef.current);rafRef.current=0;}
-    setHolding(false);if(!doneRef.current)setP(0);
-  };
-  const pct=p*100;
-  const trans=holding?"none":"width .35s cubic-bezier(.4,0,.2,1)";
-  const inner=inv=>(
-    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",
-      padding:"18px 22px",height:"100%",boxSizing:"border-box"}}>
-      <div style={{display:"flex",alignItems:"center",gap:10}}>
-        <Mono style={{color:inv?BG:GOLD,fontWeight:700,fontSize:14}}>$</Mono>
-        <Mono style={{color:inv?BG:FG,fontWeight:inv?600:400,fontSize:13}}>{command}</Mono>
-        {!holding&&!inv&&(
-          <span aria-hidden style={{display:"inline-block",width:8,height:14,
-            background:FG,verticalAlign:"middle",marginLeft:1,
-            animation:"caretBlink 1.05s steps(2) infinite"}}/>
+  },[onComplete]);
+  const stopHold=useCallback(()=>{
+    setHolding(false);cancelAnimationFrame(rafRef.current);setPct(0);
+  },[]);
+  useEffect(()=>()=>cancelAnimationFrame(rafRef.current),[]);
+
+  const borderColor=inverted?"rgba(255,255,255,.35)":NAVY;
+  const fillColor=inverted?SURFACE:NAVY;
+  const textColor=inverted?SURFACE:INK;
+  const textColorFill=inverted?NAVY:SURFACE;
+
+  return(
+    <div onMouseDown={startHold} onMouseUp={stopHold} onMouseLeave={stopHold}
+      onTouchStart={startHold} onTouchEnd={stopHold}
+      style={{position:"relative",width:"100%",maxWidth:width,height:48,
+        background:inverted?"rgba(255,255,255,.08)":SURFACE,
+        border:`1.5px solid ${borderColor}`,borderRadius:2,cursor:"pointer",
+        overflow:"hidden",userSelect:"none",
+        boxShadow:holding?"0 4px 20px rgba(27,51,86,.15)":"none",
+        transition:"box-shadow .2s"}}>
+      <div style={{position:"absolute",top:0,left:0,height:"100%",width:`${pct}%`,
+        background:fillColor,transition:holding?"none":"width .15s ease",zIndex:1}}/>
+      <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",
+        justifyContent:"space-between",padding:"0 18px",zIndex:2}}>
+        <span style={{fontFamily:"'Inter',sans-serif",fontSize:12,fontWeight:600,
+          letterSpacing:"2px",textTransform:"uppercase",color:textColor}}>{label}</span>
+        <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:textColor,opacity:.6}}>
+          {pct>1?`${Math.round(pct)}%`:"PRESS & HOLD →"}
+        </span>
+      </div>
+      {pct>0&&(
+        <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",
+          justifyContent:"space-between",padding:"0 18px",zIndex:3,
+          clipPath:`inset(0 ${100-pct}% 0 0)`}}>
+          <span style={{fontFamily:"'Inter',sans-serif",fontSize:12,fontWeight:600,
+            letterSpacing:"2px",textTransform:"uppercase",color:textColorFill}}>{label}</span>
+          <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:textColorFill}}>
+            {pct>1?`${Math.round(pct)}%`:"PRESS & HOLD →"}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── HERO SECTION (S00) ────────────────────────────────────────────────────────
+function HeroSection({onEnter}){
+  const wide=useWide(900);
+  const heroGuardrails=GUARDRAILS.slice(0,7);
+  return(
+    <section id="lp-s0" style={{background:BG,borderBottom:`1px solid ${BORDER}`,
+      display:"flex",alignItems:"center",justifyContent:"center",position:"relative"}}>
+      <div style={{maxWidth:1400,width:"100%",margin:"0 auto",
+        padding:`0 clamp(24px,4vw,52px)`,
+        display:"grid",gridTemplateColumns:wide?"1fr 1fr":"1fr",gap:wide?60:40,
+        alignItems:"center"}}>
+        <div style={{display:"flex",flexDirection:"column",gap:0}}>
+          <div data-morph style={{display:"flex",alignItems:"center",gap:8,marginBottom:20}}>
+            <div style={{width:6,height:6,borderRadius:"50%",background:UP,animation:"dotPulse 2s ease-in-out infinite"}}/>
+            <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:GOLD,fontWeight:600,letterSpacing:"0.5px"}}>MER.ADV.MY · MAS-GUARD-001</span>
+          </div>
+          <h1 data-morph style={{fontFamily:"'Cormorant Garamond',serif",
+            fontSize:"clamp(44px,5.2vw,72px)",fontWeight:700,lineHeight:.96,
+            color:INK,margin:"0 0 24px",letterSpacing:"-1px"}}>
+            Real Estate<br/>Advisory,<br/><span style={{color:NAVY}}>institutionalised</span>
+            <span style={{display:"inline-block",width:10,height:10,borderRadius:"50%",
+              background:GOLD,marginLeft:6,verticalAlign:"middle",transform:"translateY(-2px)"}}/>
+          </h1>
+          <p data-morph style={{fontFamily:"'Inter',sans-serif",fontSize:15,color:INK_S,
+            lineHeight:1.7,maxWidth:480,margin:"0 0 32px"}}>
+            A structured consultancy framework for Malaysian real estate advisory. Seven report families, 22 guardrails, five compliance domains — built for institutional-grade outputs.
+          </p>
+          <div data-morph style={{marginBottom:10}}>
+            <HoldBar onComplete={onEnter} label="Access the platform" width={460}/>
+          </div>
+          <p data-morph style={{fontFamily:"'Inter',sans-serif",fontSize:11,color:INK_M,margin:"8px 0 32px"}}>Press and hold to enter the platform</p>
+          <div data-morph style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:0,
+            borderTop:`1px solid ${BORDER}`,paddingTop:24}}>
+            {[["07","Report Families"],["22","Guardrails"],["05","Domains"],["MY","Region"]].map(([v,l],i)=>(
+              <div key={i} style={{padding:"0 16px 0 0",borderRight:i<3?`1px solid ${BORDER}`:"none",
+                paddingRight:i<3?16:0,paddingLeft:i>0?16:0}}>
+                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:28,fontWeight:700,color:INK,lineHeight:1}}>{v}</div>
+                <div style={{fontFamily:"'Inter',sans-serif",fontSize:10,color:INK_M,textTransform:"uppercase",letterSpacing:"1.5px",marginTop:4}}>{l}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+        {wide&&(
+          <div data-morph>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+              <span style={{fontFamily:"'Inter',sans-serif",fontSize:10,color:INK_M}}>Guardrail Matrix — Excerpt</span>
+              <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9.5,color:GOLD}}>MAS-GUARD-001</span>
+            </div>
+            <div style={{background:SURFACE,border:`1px solid ${BORDER}`,borderRadius:3,
+              boxShadow:"0 4px 20px rgba(26,33,48,.06)",overflow:"hidden"}}>
+              {heroGuardrails.map((g,i)=>(
+                <div key={g.code} style={{display:"flex",alignItems:"center",gap:12,
+                  padding:"10px 16px",
+                  background:i%2===0?"transparent":SURFACE_S,
+                  borderBottom:i<heroGuardrails.length-1?`1px solid ${BORDER_L}`:"none"}}>
+                  <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9.5,color:NAVY,minWidth:96,flexShrink:0}}>{g.code}</span>
+                  <span style={{fontFamily:"'Inter',sans-serif",fontSize:12.5,color:INK_S,flex:1}}>{g.title}</span>
+                  <SevPill sev={g.sev}/>
+                </div>
+              ))}
+              <div style={{padding:"12px 16px",borderTop:`1px solid ${BORDER_L}`,textAlign:"center"}}>
+                <span style={{fontFamily:"'Inter',sans-serif",fontSize:11,color:GOLD,fontWeight:600}}>+ 15 more guardrails · Press SPACE to continue</span>
+              </div>
+            </div>
+          </div>
         )}
       </div>
-      <Mono style={{fontSize:10,letterSpacing:"2.5px",color:inv?BG:FG_DIM,
-        fontWeight:inv?700:600,textTransform:"uppercase"}}>
-        {holding?`${Math.floor(pct).toString().padStart(2,"0")}%`:"HOLD ↓ TO EXEC"}
-      </Mono>
-    </div>
-  );
-  return(
-    <button onPointerDown={start} onPointerUp={stop} onPointerLeave={stop} onPointerCancel={stop}
-      onClick={e=>e.stopPropagation()} onContextMenu={e=>e.preventDefault()}
-      className="hold-btn"
-      style={{position:"relative",display:"block",width:"100%",maxWidth:width,
-        background:PANEL_S,border:`1px solid ${BORDER}`,padding:0,cursor:"pointer",
-        overflow:"hidden",touchAction:"none",userSelect:"none"}}>
-      <div aria-hidden style={{position:"absolute",left:0,top:0,bottom:0,width:`${pct}%`,
-        background:`linear-gradient(90deg,${GOLD_DIM} 0%,${GOLD} 100%)`,transition:trans,willChange:"width"}}/>
-      <div aria-hidden style={{position:"absolute",left:0,top:0,bottom:0,right:0,overflow:"hidden",
-        clipPath:`inset(0 ${100-pct}% 0 0)`,WebkitClipPath:`inset(0 ${100-pct}% 0 0)`,transition:trans}}>
-        {inner(true)}
-      </div>
-      {inner(false)}
-    </button>
-  );
-}
-
-// ── LANDING SECTIONS ──────────────────────────────────────────────────────────
-function HeroSection({onEnter}){
-  const wide=useWide(960);
-  return(
-    <section style={{position:"relative",background:BG,borderBottom:`1px solid ${BORDER}`,overflow:"hidden"}}>
-      <Grain/><Grid/><GoldBar/>
-      <div style={{maxWidth:1400,margin:"0 auto",width:"100%",
-        padding:wide?"clamp(14px,2.2vh,30px) 36px":"28px 24px",
-        boxSizing:"border-box",position:"relative",zIndex:1,
-        display:"grid",gridTemplateColumns:wide?"minmax(0,1fr) minmax(0,1fr)":"1fr",
-        gap:wide?48:28,alignItems:"center"}}>
-
-        {/* LEFT */}
-        <div>
-          <div data-morph style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,
-            color:FG_DIM,letterSpacing:"2.2px",fontWeight:500,marginBottom:20,
-            display:"flex",alignItems:"center",gap:10,textTransform:"uppercase"}}>
-            <span style={{color:GOLD}}>[</span>
-            <span style={{color:GOLD,fontWeight:700}}>MER/07</span>
-            <span style={{color:FG_MUTE}}>·</span>
-            <span>Advisory Platform</span>
-            <span style={{color:GOLD}}>]</span>
-            <span style={{flex:1,height:1,background:BORDER}}/>
-            <span style={{color:FG_MUTE}}>MAS-GUARD v1.0</span>
-          </div>
-
-          <h1 data-morph style={{fontFamily:"'Cormorant Garamond',serif",
-            fontSize:"clamp(44px,5.8vw,76px)",fontWeight:700,lineHeight:.95,
-            letterSpacing:"-.02em",color:FG,margin:"0 0 18px"}}>
-            Real Estate<br/>Advisory,<br/>
-            <span style={{color:GOLD}}>institutionalised</span>
-            <span aria-hidden style={{display:"inline-block",width:12,height:12,
-              background:GOLD,marginLeft:10,marginBottom:8,verticalAlign:"middle",
-              boxShadow:`0 0 14px ${GOLD}`}}/>
-          </h1>
-
-          <p data-morph style={{fontFamily:"'Inter',sans-serif",fontSize:15,lineHeight:1.65,
-            color:FG_DIM,maxWidth:500,margin:"0 0 26px",fontWeight:400}}>
-            Professional-grade consultancy infrastructure for the Malaysian real estate market. Built on the Meridian Advisory Standard — 22 guardrails, 7 report families, one platform.
-          </p>
-
-          <div data-morph>
-            <HoldBar onComplete={onEnter}/>
-            <div style={{marginTop:12,fontFamily:"'IBM Plex Mono',monospace",fontSize:9.5,
-              color:FG_MUTE,letterSpacing:"1.8px",textTransform:"uppercase"}}>
-              ↳ press &amp; hold to enter the library
-            </div>
-          </div>
-
-          <div data-morph style={{marginTop:24,paddingTop:18,borderTop:`1px solid ${BORDER}`,
-            display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:0}}>
-            {[["Report Families","07"],["Guardrails","22"],["Domains","05"],["Region","MY"]].map(([k,v],i,a)=>(
-              <div key={k} className="lp-stat" style={{
-                borderRight:i<a.length-1?`1px solid ${BORDER}`:"none",
-                padding:i===0?"6px 14px 6px 0":"6px 14px",margin:"-6px 0"}}>
-                <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9,color:FG_MUTE,
-                  letterSpacing:"1.8px",textTransform:"uppercase",fontWeight:500,marginBottom:6}}>{k}</div>
-                <div className="lp-stat-n" style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:22,
-                  color:FG,fontWeight:700,letterSpacing:"-.5px",
-                  transition:"color .2s ease"}}>{v}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* RIGHT — guardrail preview */}
-        <div data-morph style={{position:"relative"}}>
-          <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9.5,color:FG_MUTE,
-            letterSpacing:"2px",fontWeight:500,marginBottom:12,
-            display:"flex",alignItems:"center",justifyContent:"space-between",textTransform:"uppercase"}}>
-            <span>—— guardrail matrix · excerpt</span>
-            <span>MAS-GUARD-001 · v1.0</span>
-          </div>
-          <div style={{background:PANEL,border:`1px solid ${BORDER}`,overflow:"hidden"}}>
-            {GUARDRAILS.slice(0,7).map((g,i)=>(
-              <div key={g.code} style={{display:"flex",alignItems:"center",gap:12,
-                padding:"9px 14px",
-                borderBottom:i<6?`1px solid rgba(255,255,255,.04)`:"none",
-                background:i%2===0?"transparent":"rgba(255,255,255,.012)"}}>
-                <Mono style={{fontSize:9.5,color:GOLD,fontWeight:700,letterSpacing:"1px",minWidth:92}}>{g.code}</Mono>
-                <span style={{flex:1,fontFamily:"'Inter',sans-serif",fontSize:12,color:FG_DIM}}>{g.title}</span>
-                <SevPill sev={g.sev}/>
-              </div>
-            ))}
-            <div style={{padding:"9px 14px",fontFamily:"'IBM Plex Mono',monospace",
-              fontSize:9.5,color:GOLD,letterSpacing:"1.5px",fontWeight:700,
-              borderTop:`1px solid ${BORDER}`}}>
-              + 15 MORE → [SPACE] TO CONTINUE
-            </div>
-          </div>
-        </div>
-      </div>
     </section>
   );
 }
 
+// ── REPORT SUITE SECTION (S01) ────────────────────────────────────────────────
 function ReportSuiteSection(){
-  const wide=useWide(700);
   return(
-    <section style={{position:"relative",background:BG,borderBottom:`1px solid ${BORDER}`,overflow:"hidden"}}>
-      <Grain/>
-      <div style={{maxWidth:1400,margin:"0 auto",padding:"0 36px",boxSizing:"border-box",position:"relative",zIndex:1}}>
-        <SecTag num="S01" label="The Seven Report Families"/>
-        <div data-morph>
-          <h2 style={{fontFamily:"'Cormorant Garamond',serif",fontSize:"clamp(30px,4vw,50px)",
-            fontWeight:700,color:FG,margin:"0 0 8px"}}>MER Report Suite</h2>
-          <p style={{fontFamily:"'Inter',sans-serif",fontSize:13.5,color:FG_DIM,
-            margin:"0 0 24px",maxWidth:600,lineHeight:1.6}}>
-            Seven purpose-built consultancy report families. Each defines mandatory sections, typical scope, and guardrail requirements. All outputs carry the Meridian Advisory Standard.
-          </p>
-        </div>
-        <div data-morph style={{display:"grid",
-          gridTemplateColumns:wide?"repeat(auto-fill,minmax(300px,1fr))":"1fr",gap:10}}>
-          {MER_TYPES.map((t,i)=>(
-            <div key={t.code} className="lp-card" style={{background:PANEL_S,
-              border:`1px solid ${BORDER}`,padding:"16px 20px",position:"relative"}}>
-              <div style={{display:"flex",alignItems:"baseline",justifyContent:"space-between",marginBottom:10}}>
-                <Mono style={{fontSize:10.5,color:GOLD,fontWeight:700,letterSpacing:"1.5px"}}>{t.code}</Mono>
-                <Mono style={{fontSize:9,color:FG_MUTE,padding:"2px 8px",
-                  border:`1px solid ${BORDER}`,letterSpacing:"1px"}}>{t.tag}</Mono>
+    <section style={{background:SURFACE_S,borderBottom:`1px solid ${BORDER}`,display:"flex",
+      alignItems:"flex-start",justifyContent:"center",width:"100%",boxSizing:"border-box"}}>
+      <div style={{maxWidth:1400,width:"100%",padding:"0 40px",boxSizing:"border-box"}}>
+        <SectionLabel num="S01" label="The Seven Report Families"/>
+        <h2 data-morph style={{fontFamily:"'Cormorant Garamond',serif",fontSize:"clamp(30px,4vw,50px)",
+          fontWeight:700,color:INK,margin:"0 0 12px",lineHeight:1.1}}>
+          The Seven Report Families
+        </h2>
+        <p data-morph style={{fontFamily:"'Inter',sans-serif",fontSize:13.5,color:INK_S,margin:"0 0 28px",maxWidth:620,lineHeight:1.6}}>
+          Every engagement is classified into one of seven MER report types. Each type carries a defined section structure, scope boundary, and guardrail checklist.
+        </p>
+        <div data-morph style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))",gap:14}}>
+          {MER_TYPES.map((t)=>(
+            <div key={t.code} className="lp-card"
+              style={{background:SURFACE,border:`1px solid ${BORDER}`,borderRadius:3,padding:"18px 22px"}}>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+                <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10.5,color:NAVY,
+                  background:NAVY_DIM,border:"1px solid rgba(27,51,86,.15)",
+                  padding:"3px 8px",borderRadius:2}}>{t.code}</span>
+                <span style={{fontFamily:"'Inter',sans-serif",fontSize:10,color:INK_M,
+                  border:`1px solid ${BORDER}`,padding:"3px 8px",borderRadius:2}}>{t.tag}</span>
               </div>
-              <div className="lp-num" style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,
-                fontWeight:700,color:FG,marginBottom:8,lineHeight:1.2,
-                transition:"color .2s ease"}}>{t.type}</div>
-              <Mono style={{fontSize:9.5,color:FG_MUTE,letterSpacing:"1px",
-                display:"block",marginBottom:10}}>Pages: {t.pages}</Mono>
-              <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
-                {[1,2,3,4,5,6,7,8].map(n=>(
-                  <span key={n} style={{width:22,height:22,display:"flex",alignItems:"center",
-                    justifyContent:"center",fontFamily:"'IBM Plex Mono',monospace",
-                    fontSize:9.5,fontWeight:700,
-                    background:t.sections.includes(n)?GOLD_DIM:"transparent",
-                    color:t.sections.includes(n)?GOLD_B:FG_MUTE,
-                    border:`1px solid ${t.sections.includes(n)?"rgba(196,146,42,.3)":BORDER}`}}>§{n}</span>
-                ))}
+              <div className="lp-num" style={{fontFamily:"'Cormorant Garamond',serif",fontSize:19,
+                fontWeight:700,color:INK,margin:"8px 0 4px",transition:"color .2s"}}>{t.type}</div>
+              <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9.5,color:INK_M,marginBottom:10}}>{t.pages} pages</div>
+              <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+                {[1,2,3,4,5,6,7,8].map(n=>{
+                  const inc=t.sections.includes(n);
+                  return(
+                    <div key={n} style={{width:24,height:24,display:"flex",alignItems:"center",
+                      justifyContent:"center",fontSize:9.5,fontWeight:600,borderRadius:2,
+                      border:`1px solid ${inc?"rgba(168,121,40,.3)":BORDER_L}`,
+                      background:inc?GOLD_DIM:"transparent",
+                      color:inc?GOLD_B:INK_F}}>§{n}</div>
+                  );
+                })}
               </div>
             </div>
           ))}
@@ -593,46 +474,44 @@ function ReportSuiteSection(){
   );
 }
 
+// ── GUARDRAIL SECTION (S02) ───────────────────────────────────────────────────
 function GuardrailSection(){
-  const domains=["Scope","Evidence","AI Use","Disclosure","Process"];
+  const domainCounts={};
+  GUARDRAILS.forEach(g=>{domainCounts[g.domain]=(domainCounts[g.domain]||0)+1;});
   return(
-    <section style={{position:"relative",background:PANEL,borderBottom:`1px solid ${BORDER}`,overflow:"hidden"}}>
-      <Grain o={.02}/>
-      <div style={{maxWidth:1400,margin:"0 auto",padding:"0 36px",boxSizing:"border-box",position:"relative",zIndex:1}}>
-        <SecTag num="S02" label="The Guardrail Matrix"/>
-        <div data-morph>
-          <h2 style={{fontFamily:"'Cormorant Garamond',serif",fontSize:"clamp(30px,4vw,50px)",
-            fontWeight:700,color:FG,margin:"0 0 8px"}}>22 Guardrails · 5 Domains</h2>
-          <p style={{fontFamily:"'Inter',sans-serif",fontSize:13.5,color:FG_DIM,
-            margin:"0 0 20px",maxWidth:600,lineHeight:1.6}}>
-            Document MAS-GUARD-001 v1.0. Governs every consultancy report produced on the Meridian platform across scope, evidence, AI use, disclosure, and process.
-          </p>
+    <section style={{background:BG,borderBottom:`1px solid ${BORDER}`,display:"flex",
+      alignItems:"flex-start",justifyContent:"center",width:"100%",boxSizing:"border-box"}}>
+      <div style={{maxWidth:1400,width:"100%",padding:"0 40px",boxSizing:"border-box"}}>
+        <SectionLabel num="S02" label="Guardrail Matrix"/>
+        <h2 data-morph style={{fontFamily:"'Cormorant Garamond',serif",fontSize:"clamp(30px,4vw,50px)",
+          fontWeight:700,color:INK,margin:"0 0 12px",lineHeight:1.1}}>
+          22 Guardrails Across 5 Domains
+        </h2>
+        <p data-morph style={{fontFamily:"'Inter',sans-serif",fontSize:13.5,color:INK_S,margin:"0 0 20px",maxWidth:620,lineHeight:1.6}}>
+          Each advisory engagement is assessed against a structured compliance matrix. Guardrails are categorised by domain and severity to ensure consistent, defensible outputs.
+        </p>
+        <div data-morph style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:24}}>
+          {Object.entries(DC).map(([domain,c])=>(
+            <span key={domain} style={{fontFamily:"'Inter',sans-serif",fontSize:11,fontWeight:600,
+              padding:"5px 12px",borderRadius:2,background:c.bg,border:`1px solid ${c.bd}`,color:c.tx}}>
+              {domain} ({domainCounts[domain]||0})
+            </span>
+          ))}
         </div>
-        <div data-morph style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
-          {domains.map(d=>{
-            const dc=DC[d],count=GUARDRAILS.filter(g=>g.domain===d).length;
-            return(
-              <div key={d} style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,
-                color:dc.tx,fontWeight:700,letterSpacing:"1px",padding:"4px 12px",
-                background:dc.bg,border:`1px solid ${dc.bd}`}}>
-                {d} ({count})
-              </div>
-            );
-          })}
-        </div>
-        <div data-morph style={{background:BG,border:`1px solid ${BORDER}`,overflow:"hidden"}}>
+        <div data-morph style={{background:SURFACE,border:`1px solid ${BORDER}`,borderRadius:3,
+          boxShadow:"0 2px 16px rgba(26,33,48,.05)",overflow:"hidden"}}>
           {GUARDRAILS.map((g,i)=>{
-            const dc=DC[g.domain];
+            const dc=DC[g.domain]||{};
             return(
-              <div key={g.code} className="gr-row" style={{display:"flex",alignItems:"center",
-                gap:14,padding:"8px 14px",
-                borderBottom:i<GUARDRAILS.length-1?`1px solid rgba(255,255,255,.04)`:"none",
-                background:i%2===0?"transparent":"rgba(255,255,255,.01)"}}>
-                <Mono style={{fontSize:9.5,color:GOLD,fontWeight:700,letterSpacing:"1px",minWidth:100}}>{g.code}</Mono>
-                <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9,padding:"2px 8px",
-                  background:dc.bg,color:dc.tx,border:`1px solid ${dc.bd}`,
-                  minWidth:78,letterSpacing:"1px",fontWeight:700,textAlign:"center"}}>{g.domain}</div>
-                <span style={{fontFamily:"'Inter',sans-serif",fontSize:12.5,color:FG_DIM,flex:1}}>{g.title}</span>
+              <div key={g.code} className="gr-row"
+                style={{display:"flex",alignItems:"center",gap:14,padding:"11px 18px",
+                  background:i%2===0?"transparent":SURFACE_S,
+                  borderBottom:i<GUARDRAILS.length-1?`1px solid ${BORDER_L}`:"none"}}>
+                <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9.5,color:NAVY,minWidth:100,flexShrink:0}}>{g.code}</span>
+                <span style={{fontFamily:"'Inter',sans-serif",fontSize:11,fontWeight:600,
+                  padding:"3px 9px",borderRadius:2,background:dc.bg,border:`1px solid ${dc.bd}`,color:dc.tx,
+                  whiteSpace:"nowrap",minWidth:80,textAlign:"center"}}>{g.domain}</span>
+                <span style={{fontFamily:"'Inter',sans-serif",fontSize:13,color:INK_S,flex:1}}>{g.title}</span>
                 <SevPill sev={g.sev}/>
               </div>
             );
@@ -643,74 +522,70 @@ function GuardrailSection(){
   );
 }
 
+// ── METHODOLOGY SECTION (S03) ─────────────────────────────────────────────────
 function MethodologySection(){
-  const wide=useWide(700);
+  const aiTable=[
+    {task:"Market Data Aggregation",     ai:true, hr:true,  hl:false},
+    {task:"Comparable Transaction Search",ai:true,hr:true,  hl:false},
+    {task:"Financial Model Construction", ai:false,hr:true,  hl:true},
+    {task:"HBU Test Conclusions",         ai:false,hr:false, hl:true},
+    {task:"Risk Register Scoring",        ai:false,hr:true,  hl:true},
+    {task:"Executive Summary Drafting",   ai:true, hr:true,  hl:false},
+    {task:"Regulatory Compliance Review", ai:false,hr:false, hl:true},
+    {task:"Final Sign-Off",              ai:false,hr:false, hl:true},
+  ];
   return(
-    <section style={{position:"relative",background:BG,borderBottom:`1px solid ${BORDER}`,overflow:"hidden"}}>
-      <Grain/>
-      <div style={{maxWidth:1400,margin:"0 auto",padding:"0 36px",boxSizing:"border-box",position:"relative",zIndex:1}}>
-        <SecTag num="S03" label="Mandatory Report Structure"/>
-        <div data-morph>
-          <h2 style={{fontFamily:"'Cormorant Garamond',serif",fontSize:"clamp(30px,4vw,50px)",
-            fontWeight:700,color:FG,margin:"0 0 8px"}}>Eight-Section Standard</h2>
-          <p style={{fontFamily:"'Inter',sans-serif",fontSize:13.5,color:FG_DIM,
-            margin:"0 0 22px",maxWidth:600,lineHeight:1.6}}>
-            Every Meridian consultancy report follows this structure in order. Sections marked COND are required only for applicable report types per the MER suite table.
-          </p>
-        </div>
-        <div data-morph style={{display:"grid",
-          gridTemplateColumns:wide?"repeat(auto-fill,minmax(340px,1fr))":"1fr",gap:10,marginBottom:24}}>
+    <section style={{background:SURFACE_S,borderBottom:`1px solid ${BORDER}`,display:"flex",
+      alignItems:"flex-start",justifyContent:"center",width:"100%",boxSizing:"border-box"}}>
+      <div style={{maxWidth:1400,width:"100%",padding:"0 40px",boxSizing:"border-box"}}>
+        <SectionLabel num="S03" label="Report Structure"/>
+        <h2 data-morph style={{fontFamily:"'Cormorant Garamond',serif",fontSize:"clamp(30px,4vw,50px)",
+          fontWeight:700,color:INK,margin:"0 0 12px",lineHeight:1.1}}>
+          Eight-Section Report Framework
+        </h2>
+        <p data-morph style={{fontFamily:"'Inter',sans-serif",fontSize:13.5,color:INK_S,margin:"0 0 28px",maxWidth:620,lineHeight:1.6}}>
+          All MER advisory reports follow a standardised eight-section structure. Conditional sections are included based on report type classification.
+        </p>
+        <div data-morph style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(340px,1fr))",gap:12,marginBottom:32}}>
           {REPORT_SECTIONS.map(s=>(
-            <div key={s.n} style={{background:PANEL_S,border:`1px solid ${BORDER}`,
-              padding:"14px 18px",display:"flex",gap:14}}>
-              <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:20,fontWeight:700,
-                color:GOLD,minWidth:28,opacity:.3,lineHeight:1,paddingTop:2}}>§{s.n}</div>
+            <div key={s.n} style={{background:SURFACE,border:`1px solid ${BORDER}`,borderRadius:3,
+              padding:"16px 20px",boxShadow:"0 2px 12px rgba(26,33,48,.05)",
+              display:"flex",gap:14,alignItems:"flex-start"}}>
+              <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:22,color:GOLD,
+                opacity:.35,fontWeight:700,lineHeight:1,flexShrink:0,marginTop:2}}>§{s.n}</span>
               <div>
-                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:17,fontWeight:700,
-                  color:FG,marginBottom:5,display:"flex",alignItems:"center",gap:8}}>
-                  {s.title}
-                  {s.cond&&(
-                    <Mono style={{fontSize:8,color:AMBER,border:`1px solid rgba(212,160,32,.3)`,
-                      padding:"1px 6px",letterSpacing:"1px",fontWeight:700}}>COND</Mono>
-                  )}
+                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:5}}>
+                  <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:17,fontWeight:700,color:INK}}>{s.title}</span>
+                  {s.cond&&<span style={{fontFamily:"'Inter',sans-serif",fontSize:9,fontWeight:600,
+                    color:AMBER,background:"rgba(154,107,24,.06)",border:`1px solid rgba(154,107,24,.2)`,
+                    padding:"2px 6px",borderRadius:2,letterSpacing:"0.5px"}}>COND</span>}
                 </div>
-                <div style={{fontFamily:"'Inter',sans-serif",fontSize:12,color:FG_DIM,lineHeight:1.6}}>{s.desc}</div>
+                <p style={{fontFamily:"'Inter',sans-serif",fontSize:12,color:INK_M,margin:0,lineHeight:1.6}}>{s.desc}</p>
               </div>
             </div>
           ))}
         </div>
         <div data-morph>
-          <Mono style={{fontSize:9.5,color:GOLD,letterSpacing:"2px",fontWeight:700,
-            display:"block",marginBottom:12}}>—— AI ROLE BOUNDARIES</Mono>
-          <div style={{background:PANEL_S,border:`1px solid ${BORDER}`,overflow:"hidden"}}>
-            {[
-              {task:"Market data aggregation",    lead:true, rev:true,  human:false},
-              {task:"Comparable transaction search",lead:true,rev:true, human:false},
-              {task:"Financial model population", lead:true, rev:true,  human:false},
-              {task:"Sensitivity / scenario analysis",lead:true,rev:true,human:false},
-              {task:"Draft narrative production", lead:true, rev:true,  human:false},
-              {task:"Regulatory & zoning interpretation",lead:false,rev:false,human:true},
-              {task:"Physical site visit",        lead:false,rev:false, human:true},
-              {task:"Risk Register final scores", lead:false,rev:true,  human:false},
-              {task:"Final sign-off",             lead:false,rev:false, human:true},
-            ].map((row,i,a)=>(
-              <div key={row.task} style={{display:"grid",
-                gridTemplateColumns:"1fr 110px 110px 110px",
-                alignItems:"center",padding:"8px 16px",
-                borderBottom:i<a.length-1?`1px solid rgba(255,255,255,.04)`:"none",
-                background:i%2===0?"transparent":"rgba(255,255,255,.01)"}}>
-                <span style={{fontFamily:"'Inter',sans-serif",fontSize:12.5,color:FG_DIM}}>{row.task}</span>
-                {[row.lead,row.rev,row.human].map((v,j)=>(
-                  <Mono key={j} style={{fontSize:11,color:v?UP:FG_MUTE,fontWeight:v?700:400,textAlign:"center"}}>{v?"✓":"—"}</Mono>
-                ))}
+          <div style={{fontFamily:"'Inter',sans-serif",fontSize:11,color:INK_M,textTransform:"uppercase",
+            letterSpacing:"2px",marginBottom:12}}>AI Role Boundaries</div>
+          <div style={{background:SURFACE,border:`1px solid ${BORDER}`,borderRadius:3,
+            boxShadow:"0 2px 12px rgba(26,33,48,.05)",overflow:"hidden"}}>
+            {aiTable.map((row,i)=>(
+              <div key={i} style={{display:"grid",gridTemplateColumns:"1fr repeat(3,90px)",
+                padding:"10px 18px",borderBottom:i<aiTable.length-1?`1px solid ${BORDER_L}`:"none",
+                background:i%2===0?"transparent":SURFACE_S,alignItems:"center",gap:10}}>
+                <span style={{fontFamily:"'Inter',sans-serif",fontSize:12.5,color:INK_S}}>{row.task}</span>
+                <span style={{textAlign:"center",fontSize:13}}>{row.ai?"✓":"—"}</span>
+                <span style={{textAlign:"center",fontSize:13}}>{row.hr?"✓":"—"}</span>
+                <span style={{textAlign:"center",fontSize:13}}>{row.hl?"✓":"—"}</span>
               </div>
             ))}
-            <div style={{display:"grid",gridTemplateColumns:"1fr 110px 110px 110px",
-              padding:"8px 16px",borderTop:`1px solid ${BORDER}`}}>
+            <div style={{display:"grid",gridTemplateColumns:"1fr repeat(3,90px)",
+              padding:"8px 18px",borderTop:`1px solid ${BORDER}`,background:SURFACE_S,gap:10}}>
               <span/>
-              {["AI may lead","Human review","Human leads"].map(h=>(
-                <Mono key={h} style={{fontSize:8.5,color:GOLD,letterSpacing:"1px",fontWeight:700,
-                  textAlign:"center",textTransform:"uppercase"}}>{h}</Mono>
+              {["AI may lead","Human review","Human leads"].map(l=>(
+                <span key={l} style={{fontFamily:"'Inter',sans-serif",fontSize:9,color:INK_M,
+                  textTransform:"uppercase",letterSpacing:"0.5px",textAlign:"center"}}>{l}</span>
               ))}
             </div>
           </div>
@@ -720,37 +595,45 @@ function MethodologySection(){
   );
 }
 
+// ── DEPLOY SECTION (S04) ──────────────────────────────────────────────────────
 function DeploySection({onEnter}){
+  const stats=[
+    {v:"07",l:"Report Families"},
+    {v:"22",l:"Guardrails"},
+    {v:"05",l:"Domains"},
+    {v:"12",l:"Compliance Checks"},
+    {v:"MY",l:"Jurisdiction"},
+  ];
   return(
-    <section style={{position:"relative",background:PANEL,borderBottom:`1px solid ${BORDER}`,overflow:"hidden"}}>
-      <Grain o={.02}/><Grid/>
-      <div style={{maxWidth:1400,margin:"0 auto",padding:"0 36px",boxSizing:"border-box",
-        position:"relative",zIndex:1,
-        display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",textAlign:"center"}}>
-        <SecTag num="S04" label="Enter the Platform"/>
-        <div data-morph>
-          <h2 style={{fontFamily:"'Cormorant Garamond',serif",fontSize:"clamp(40px,5.5vw,72px)",
-            fontWeight:700,color:FG,margin:"0 0 16px",lineHeight:1.0}}>
-            The advisory library<br/><span style={{color:GOLD}}>is ready.</span>
-          </h2>
-          <p style={{fontFamily:"'Inter',sans-serif",fontSize:15,color:FG_DIM,
-            maxWidth:540,margin:"0 auto 32px",lineHeight:1.65}}>
-            Access all seven MER report families, the complete guardrail enforcement framework, and interactive analysis tools — built to Meridian Advisory Standards.
-          </p>
+    <section style={{background:NAVY_SECTION,display:"flex",
+      alignItems:"flex-start",justifyContent:"center",width:"100%",boxSizing:"border-box"}}>
+      <div style={{maxWidth:1400,width:"100%",padding:"0 40px",boxSizing:"border-box"}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:28}}>
+          <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:GOLD,fontWeight:700,letterSpacing:"1.5px"}}>S04</span>
+          <span style={{width:20,height:1,background:GOLD,opacity:.6,display:"inline-block"}}/>
+          <span style={{fontFamily:"'Inter',sans-serif",fontSize:11,color:"rgba(255,255,255,.55)",fontWeight:600,letterSpacing:"2.5px",textTransform:"uppercase"}}>DEPLOY</span>
         </div>
-        <div data-morph style={{marginBottom:36}}>
-          <HoldBar onComplete={onEnter} command="access --library --env=production --region=MY" width={580}/>
-          <div style={{marginTop:12,fontFamily:"'IBM Plex Mono',monospace",fontSize:9.5,
-            color:FG_MUTE,letterSpacing:"1.8px",textTransform:"uppercase"}}>
-            ↳ press &amp; hold to enter the report library
-          </div>
+        <h2 data-morph style={{fontFamily:"'Cormorant Garamond',serif",
+          fontSize:"clamp(40px,5vw,68px)",fontWeight:700,color:"#fff",
+          margin:"0 0 20px",lineHeight:1.05,letterSpacing:"-1px"}}>
+          The advisory library<br/>is ready.
+        </h2>
+        <p data-morph style={{fontFamily:"'Inter',sans-serif",fontSize:15,
+          color:"rgba(255,255,255,.7)",margin:"0 0 36px",maxWidth:520,lineHeight:1.7}}>
+          Access the complete report template library, guardrail compliance tools, and risk scoring engine. Structured for institutional-grade consultancy engagements.
+        </p>
+        <div data-morph style={{marginBottom:8}}>
+          <HoldBar onComplete={onEnter} label="Enter the library" width={460} inverted/>
         </div>
-        <div data-morph style={{display:"flex",gap:16,justifyContent:"center",flexWrap:"wrap"}}>
-          {[["7","Report families"],["22","Guardrail rules"],["5","Domains"],["12","Checklist items"],["MY","Jurisdiction"]].map(([v,l])=>(
-            <div key={l} style={{background:BG,border:`1px solid ${BORDER}`,padding:"16px 24px",textAlign:"center"}}>
-              <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:36,fontWeight:700,color:GOLD,lineHeight:1}}>{v}</div>
-              <Mono style={{fontSize:9.5,color:FG_MUTE,letterSpacing:"1.5px",textTransform:"uppercase",
-                display:"block",marginTop:6}}>{l}</Mono>
+        <p data-morph style={{fontFamily:"'Inter',sans-serif",fontSize:11,color:"rgba(255,255,255,.4)",margin:"8px 0 40px"}}>Press and hold to access the platform</p>
+        <div data-morph style={{display:"flex",gap:12,flexWrap:"wrap"}}>
+          {stats.map(s=>(
+            <div key={s.l} style={{background:"rgba(255,255,255,.08)",border:"1px solid rgba(255,255,255,.15)",
+              borderRadius:3,padding:"18px 24px",minWidth:100}}>
+              <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:32,fontWeight:700,
+                color:GOLD_B,lineHeight:1,marginBottom:6}}>{s.v}</div>
+              <div style={{fontFamily:"'Inter',sans-serif",fontSize:10,color:"rgba(255,255,255,.55)",
+                textTransform:"uppercase",letterSpacing:"1.5px"}}>{s.l}</div>
             </div>
           ))}
         </div>
@@ -759,202 +642,181 @@ function DeploySection({onEnter}){
   );
 }
 
-// ── LANDING PAGE (morph orchestrator) ─────────────────────────────────────────
+// ── LANDING PAGE ──────────────────────────────────────────────────────────────
 function LandingPage({onEnter,scrollRef,active}){
-  const[hint,setHint]=useState(true);
-  const busyRef=useRef(false),trackedRef=useRef([]);
+  const[sIdx,setSIdx]=useState(0);
+  const morphing=useRef(false);
+  const totalSections=LP_SECTIONS.length;
 
-  const jump=useCallback(dir=>{
-    if(busyRef.current)return;
-    const cont=scrollRef?.current;if(!cont)return;
-    const cTop=cont.getBoundingClientRect().top;
-    let cur=0,bestD=Infinity;
-    LP_SECTIONS.forEach((s,i)=>{
-      const el=document.getElementById(s.id);if(!el)return;
-      const d=Math.abs(el.getBoundingClientRect().top-cTop);
-      if(d<bestD){bestD=d;cur=i;}
+  const morphTo=useCallback((newIdx)=>{
+    if(morphing.current||!scrollRef.current)return;
+    const container=scrollRef.current;
+    const allSections=Array.from(container.querySelectorAll(".lp-fit > section"));
+    if(!allSections[newIdx])return;
+    const oldSection=allSections[sIdx];
+    const newSection=allSections[newIdx];
+    const dir=newIdx>sIdx?1:-1;
+    const oldBlocks=getMorphBlocks(oldSection);
+    const newBlocks=getMorphBlocks(newSection);
+    morphing.current=true;
+    // Scatter out current
+    oldBlocks.forEach((el,i)=>{
+      el.style.willChange="transform,opacity";
+      el.style.transition=`transform ${SCATTER_DUR}ms ease,opacity ${SCATTER_DUR}ms ease`;
+      el.style.transitionDelay=`${i*18}ms`;
+      el.style.opacity="0";
+      el.style.transform=`translateY(${dir>0?-10:10}px)`;
     });
-    const next=(cur+dir+LP_SECTIONS.length)%LP_SECTIONS.length;
-    const srcWrap=document.getElementById(LP_SECTIONS[cur].id);
-    const dstWrap=document.getElementById(LP_SECTIONS[next].id);
-    if(!dstWrap)return;
-    const dest=next===0?0:(dstWrap.getBoundingClientRect().top-cTop+cont.scrollTop-54);
-    busyRef.current=true;setHint(false);
-
-    const src=getMorphBlocks(srcWrap),dst=getMorphBlocks(dstWrap);
-    const vh=cont.clientHeight,vc=cTop+vh/2,sign=dir>0?1:-1;
-
-    src.forEach((el,i)=>{
-      const r=el.getBoundingClientRect(),dy=(r.top+r.height/2)-vc;
-      const flyY=(dy<0?-1:1)*140-sign*40,flyX=((i%2)?1:-1)*(60+i*4),delay=Math.min(120,i*22);
-      el.style.willChange="transform,opacity,filter";
-      el.style.transition=`transform ${SCATTER_DUR}ms cubic-bezier(.55,0,.4,1) ${delay}ms,opacity ${SCATTER_DUR-80}ms ease ${delay}ms,filter ${SCATTER_DUR-100}ms ease ${delay}ms`;
-      el.style.transform=`translate(${flyX}px,${flyY}px) scale(.92)`;
-      el.style.opacity="0";el.style.filter="blur(8px)";
-    });
-    dst.forEach(el=>{el.style.willChange="transform,opacity,filter";el.style.transition="none";el.style.opacity="0";});
-    trackedRef.current=[...src,...dst];
-
-    const t0=performance.now(),start=cont.scrollTop,delta=dest-start;
-    const easeIO=x=>x<.5?4*x*x*x:1-Math.pow(-2*x+2,3)/2;
-    const tweenScroll=now=>{
-      const p=Math.min(1,(now-t0)/SCROLL_DUR);cont.scrollTop=start+delta*easeIO(p);
-      if(p<1)requestAnimationFrame(tweenScroll);
-    };
-    requestAnimationFrame(tweenScroll);
-
-    const assembleAt=Math.max(SCATTER_DUR-120,SCROLL_DUR-200);
     setTimeout(()=>{
-      dst.forEach((el,i)=>{
-        const r=el.getBoundingClientRect(),dy=(r.top+r.height/2)-(cTop+vh/2);
-        const flyY=(dy<0?-1:1)*110+sign*30,flyX=((i%2)?-1:1)*(50+i*4);
-        el.style.transition="none";
-        el.style.transform=`translate(${flyX}px,${flyY}px) scale(.93)`;
-        el.style.opacity="0";el.style.filter="blur(8px)";
-        void el.offsetHeight;
-        const delay=Math.min(180,i*40);
-        el.style.transition=`transform ${ASSEMBLE_DUR}ms cubic-bezier(.18,1.05,.32,1) ${delay}ms,opacity ${ASSEMBLE_DUR-80}ms ease ${delay}ms,filter ${ASSEMBLE_DUR-120}ms ease ${delay}ms`;
-        el.style.transform="";el.style.opacity="";el.style.filter="";
+      if(newSection.scrollIntoView)newSection.scrollIntoView({behavior:"smooth",block:"start"});
+      setSIdx(newIdx);
+      oldBlocks.forEach(el=>clearMorph(el));
+      newBlocks.forEach(el=>{
+        el.style.opacity="0";
+        el.style.transform=`translateY(${dir<0?-10:10}px)`;
+        el.style.willChange="transform,opacity";
       });
-    },assembleAt);
+      setTimeout(()=>{
+        newBlocks.forEach((el,i)=>{
+          el.style.transition=`transform ${ASSEMBLE_DUR}ms ease,opacity ${ASSEMBLE_DUR}ms ease`;
+          el.style.transitionDelay=`${i*28}ms`;
+          el.style.opacity="1";
+          el.style.transform="";
+        });
+        setTimeout(()=>{
+          newBlocks.forEach(el=>clearMorph(el));
+          morphing.current=false;
+        },ASSEMBLE_DUR+newBlocks.length*28+100);
+      },SCROLL_DUR);
+    },SCATTER_DUR+oldBlocks.length*18+40);
+  },[sIdx,scrollRef]);
 
-    setTimeout(()=>{trackedRef.current.forEach(clearMorph);trackedRef.current=[];busyRef.current=false;},
-      assembleAt+ASSEMBLE_DUR+220);
-  },[scrollRef]);
-
-  useEffect(()=>()=>{trackedRef.current.forEach(clearMorph);},[]);
   useEffect(()=>{
     if(!active)return;
-    const onKey=e=>{
-      if(e.code!=="Space"&&e.key!==" ")return;
-      const tag=e.target?.tagName||"";
-      if(tag==="INPUT"||tag==="TEXTAREA"||e.target?.isContentEditable)return;
-      e.preventDefault();jump(e.shiftKey?-1:1);
+    const handler=(e)=>{
+      if(e.target.tagName==="INPUT"||e.target.tagName==="TEXTAREA")return;
+      if(e.code==="Space"){
+        e.preventDefault();
+        if(e.shiftKey)morphTo(Math.max(0,sIdx-1));
+        else morphTo(Math.min(totalSections-1,sIdx+1));
+      }
     };
-    window.addEventListener("keydown",onKey);return()=>window.removeEventListener("keydown",onKey);
-  },[active,jump]);
+    window.addEventListener("keydown",handler);
+    return()=>window.removeEventListener("keydown",handler);
+  },[active,sIdx,morphTo,totalSections]);
 
   return(
-    <div style={{background:BG}}>
-      <div aria-hidden style={{height:56,background:BG}}/>
-      <Ticker/>
-      <div id="lp-s0" className="lp-fit"><HeroSection onEnter={onEnter}/></div>
-      <div id="lp-s1" className="lp-fit"><ReportSuiteSection/></div>
-      <div id="lp-s2" className="lp-fit"><GuardrailSection/></div>
-      <div id="lp-s3" className="lp-fit"><MethodologySection/></div>
-      <div id="lp-s4" className="lp-fit"><DeploySection onEnter={onEnter}/></div>
-      {active&&hint&&(
-        <div style={{position:"fixed",bottom:22,left:"50%",
-          transform:"translateX(-50%)",zIndex:280,pointerEvents:"none",
-          display:"flex",alignItems:"center",gap:12,
-          background:"rgba(7,9,15,.85)",backdropFilter:"blur(10px)",
-          border:`1px solid ${BORDER}`,padding:"8px 16px",
-          fontFamily:"'IBM Plex Mono',monospace",fontSize:9.5,
-          letterSpacing:"1.8px",textTransform:"uppercase",fontWeight:500,
-          color:FG_DIM,animation:"hintFloat 2.4s ease infinite"}}>
-          <span style={{width:6,height:6,background:GOLD,
-            boxShadow:`0 0 6px ${GOLD}`,animation:"goldPulse 1.6s ease infinite"}}/>
-          <span style={{color:FG,fontWeight:700,border:`1px solid ${BORDER}`,padding:"2px 7px"}}>SPACE</span>
-          <span>morph section</span>
-          <span style={{color:FG_MUTE}}>·</span>
-          <span style={{color:FG,fontWeight:700,border:`1px solid ${BORDER}`,padding:"2px 7px"}}>⇧ SPACE</span>
-          <span>back</span>
+    <div className="lp-fit" ref={scrollRef}
+      style={{position:"relative",overflowY:"scroll",scrollSnapType:"y mandatory"}}>
+      <HeroSection onEnter={onEnter}/>
+      <ReportSuiteSection/>
+      <GuardrailSection/>
+      <MethodologySection/>
+      <DeploySection onEnter={onEnter}/>
+      {active&&(
+        <div style={{position:"fixed",bottom:24,left:"50%",zIndex:200,
+          animation:"hintFloat 2.8s ease-in-out infinite",pointerEvents:"none"}}>
+          <div style={{background:SURFACE,border:`1px solid ${BORDER}`,
+            padding:"8px 16px",borderRadius:20,
+            boxShadow:"0 4px 16px rgba(26,33,48,.09)"}}>
+            <span style={{fontFamily:"'Inter',sans-serif",fontSize:11,color:INK_S,letterSpacing:"0.2px"}}>
+              SPACE — next section · ⇧ SPACE — previous
+            </span>
+          </div>
         </div>
       )}
     </div>
   );
 }
 
-// ── DASHBOARD ─────────────────────────────────────────────────────────────────
+// ── REPORT CARD ───────────────────────────────────────────────────────────────
 function ReportCard({t,onDL,downloading,idx}){
-  const[ref,v]=useInView(.04);
-  const busy=downloading===t.code;
+  const[ref,vis]=useInView(.08);
   return(
-    <div ref={ref} className="mer-card" style={{background:PANEL_S,border:`1px solid ${BORDER}`,
-      overflow:"hidden",position:"relative",
-      opacity:v?1:0,transform:v?"translateY(0)":"translateY(20px)",
-      transition:`opacity .55s ease ${idx*60}ms,transform .55s cubic-bezier(.22,1,.36,1) ${idx*60}ms`,
-      display:"flex",flexDirection:"column"}}>
-      <Grain o={.02}/>
-      <div aria-hidden style={{position:"absolute",top:0,left:0,right:0,height:2,
-        background:`linear-gradient(90deg,transparent,${GOLD} 40%,${GOLD} 60%,transparent)`,
-        opacity:.45,zIndex:1}}/>
-      {/* Header */}
-      <div style={{padding:"18px 22px 14px",borderBottom:`1px solid ${BORDER}`,
-        background:GOLD_DIM,position:"relative",zIndex:1}}>
-        <div style={{display:"flex",alignItems:"baseline",justifyContent:"space-between",
-          marginBottom:10}}>
-          <Mono style={{fontSize:10.5,color:GOLD,fontWeight:700,letterSpacing:"2px"}}>{t.code}</Mono>
-          <Mono style={{fontSize:9.5,color:FG_MUTE,letterSpacing:"1.5px"}}>{t.pages} pp</Mono>
+    <div ref={ref} className="mer-card"
+      style={{background:SURFACE,border:`1px solid ${BORDER}`,borderRadius:4,
+        overflow:"hidden",opacity:vis?1:0,
+        transform:vis?"translateY(0)":"translateY(18px)",
+        transition:`opacity .5s ease ${idx*60}ms, transform .5s ease ${idx*60}ms, box-shadow .25s, transform .25s`}}>
+      <div style={{height:2,background:GOLD}}/>
+      <div style={{background:NAVY_DIM,padding:"18px 24px 14px",borderBottom:`1px solid ${BORDER}`}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+          <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10.5,color:NAVY,
+            background:NAVY_DIM,border:"1px solid rgba(27,51,86,.15)",padding:"3px 8px",borderRadius:2}}>{t.code}</span>
+          <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9.5,color:INK_M}}>{t.pages} pp.</span>
         </div>
         <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:22,fontWeight:700,
-          color:FG,lineHeight:1.1,marginBottom:4}}>{t.type}</div>
-        <Mono style={{fontSize:9.5,color:FG_MUTE,letterSpacing:"1.2px",textTransform:"uppercase"}}>{t.tag}</Mono>
+          color:INK,lineHeight:1.15,marginBottom:5}}>{t.type}</div>
+        <div style={{fontFamily:"'Inter',sans-serif",fontSize:10,color:INK_M}}>{t.tag}</div>
       </div>
-      {/* Body */}
-      <div style={{padding:"14px 22px",flex:1,position:"relative",zIndex:1}}>
-        <Mono style={{fontSize:9,color:FG_MUTE,letterSpacing:"1.5px",textTransform:"uppercase",
-          fontWeight:700,display:"block",marginBottom:8}}>—— REQUIRED SECTIONS</Mono>
-        <div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:14}}>
-          {[1,2,3,4,5,6,7,8].map(n=>(
-            <div key={n} style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,fontWeight:700,
-              padding:"4px 10px",letterSpacing:"1px",
-              background:t.sections.includes(n)?GOLD_DIM:"transparent",
-              color:t.sections.includes(n)?GOLD_B:FG_MUTE,
-              border:`1px solid ${t.sections.includes(n)?"rgba(196,146,42,.35)":BORDER}`}}>§{n}</div>
-          ))}
+      <div style={{padding:"16px 24px"}}>
+        <div style={{display:"flex",gap:4,flexWrap:"wrap",marginBottom:14}}>
+          {[1,2,3,4,5,6,7,8].map(n=>{
+            const inc=t.sections.includes(n);
+            return(
+              <div key={n} style={{width:24,height:24,display:"flex",alignItems:"center",
+                justifyContent:"center",fontSize:9.5,fontWeight:600,borderRadius:2,
+                border:`1px solid ${inc?"rgba(168,121,40,.3)":BORDER_L}`,
+                background:inc?GOLD_DIM:"transparent",
+                color:inc?GOLD_B:INK_F}}>§{n}</div>
+            );
+          })}
         </div>
-        <div style={{fontFamily:"'Inter',sans-serif",fontSize:12.5,color:FG_DIM,lineHeight:1.65}}>{t.desc}</div>
-      </div>
-      {/* Download */}
-      <div style={{padding:"14px 22px",borderTop:`1px solid ${BORDER}`,position:"relative",zIndex:1}}>
-        <button onClick={()=>onDL(t.code)} disabled={busy} style={{width:"100%",
-          background:busy?PANEL:GOLD_DIM,
-          border:`1px solid ${busy?BORDER:"rgba(196,146,42,.4)"}`,
-          color:busy?FG_MUTE:GOLD_B,fontFamily:"'IBM Plex Mono',monospace",
-          fontSize:10,letterSpacing:"2px",fontWeight:700,textTransform:"uppercase",
-          padding:"11px 0",cursor:busy?"wait":"pointer",transition:"all .15s ease"}}>
-          {busy?"PREPARING...":(`↓ DOWNLOAD ${t.code} TEMPLATE`)}
+        <p style={{fontFamily:"'Inter',sans-serif",fontSize:13,color:INK_S,
+          lineHeight:1.6,margin:"0 0 16px"}}>{t.desc}</p>
+        <button onClick={()=>onDL(t)} className="btn-primary"
+          style={{width:"100%",background:NAVY,color:"#fff",border:"none",
+            padding:"11px 0",borderRadius:2,fontFamily:"'Inter',sans-serif",
+            fontSize:11,fontWeight:600,letterSpacing:"1.5px",textTransform:"uppercase",
+            cursor:"pointer"}}>
+          {downloading===t.code?"Preparing...":"Download Template"}
         </button>
       </div>
     </div>
   );
 }
 
+// ── DASHBOARD ─────────────────────────────────────────────────────────────────
 function Dashboard({onTool}){
-  const[downloading,setDL]=useState(null),[toast,setToast]=useState(null);
-  const handleDL=code=>{
-    setDL(code);
-    setTimeout(()=>{setDL(null);setToast(`${code} report template prepared — all mandatory sections per MAS-GUARD-001 included.`);},1200);
+  const[toast,setToast]=useState(null),[dlg,setDlg]=useState(null);
+  const dl=(t)=>{
+    setDlg(t.code);
+    setTimeout(()=>{setDlg(null);setToast(`${t.code} template ready for download`);},1200);
   };
   return(
     <div style={{background:BG,minHeight:"100vh"}}>
-      <div style={{height:56}}/>
-      <div style={{background:PANEL,borderBottom:`1px solid ${BORDER}`,padding:"20px 28px"}}>
-        <div style={{maxWidth:1400,margin:"0 auto"}}>
-          <Mono style={{fontSize:9.5,color:GOLD,letterSpacing:"2.5px",fontWeight:700,
-            textTransform:"uppercase",display:"block",marginBottom:8}}>MERIDIAN · REPORT LIBRARY</Mono>
-          <h1 style={{fontFamily:"'Cormorant Garamond',serif",fontSize:"clamp(28px,3.5vw,44px)",
-            fontWeight:700,color:FG,margin:"0 0 6px"}}>MER Report Templates</h1>
-          <p style={{fontFamily:"'Inter',sans-serif",fontSize:13.5,color:FG_DIM,margin:"0 0 16px",lineHeight:1.6}}>
-            Seven report family templates built to Meridian Advisory Standards. All structures comply with MAS-GUARD-001.
+      <div style={{height:60}}/>
+      <div style={{background:SURFACE,borderBottom:`1px solid ${BORDER}`,padding:"22px 32px",
+        display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:16}}>
+        <div>
+          <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9.5,color:GOLD,
+            textTransform:"uppercase",letterSpacing:"2px",marginBottom:6}}>MERIDIAN · REPORT LIBRARY</div>
+          <h1 style={{fontFamily:"'Cormorant Garamond',serif",fontSize:32,fontWeight:700,
+            color:INK,margin:"0 0 4px",lineHeight:1.1}}>Report Template Library</h1>
+          <p style={{fontFamily:"'Inter',sans-serif",fontSize:13,color:INK_S,margin:0}}>
+            Seven MER advisory report families — MAS-GUARD-001 compliant
           </p>
-          <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
-            {[["Guardrail Checker","checker"],["Risk Scorer","risk"]].map(([label,pg])=>(
-              <button key={pg} className="btn-o" onClick={()=>onTool(pg)} style={{
-                background:"transparent",color:FG_DIM,border:`1px solid ${BORDER}`,
-                padding:"7px 16px",fontSize:10,cursor:"pointer",
-                letterSpacing:"2px",textTransform:"uppercase",fontWeight:600}}>→ {label}</button>
-            ))}
-          </div>
+        </div>
+        <div style={{display:"flex",gap:10}}>
+          <button onClick={()=>onTool("checker")} className="btn-outline"
+            style={{fontFamily:"'Inter',sans-serif",fontSize:12,color:INK_S,
+              border:`1px solid ${BORDER}`,background:"transparent",
+              padding:"9px 16px",borderRadius:2,cursor:"pointer",fontWeight:500}}>
+            Guardrail Checker
+          </button>
+          <button onClick={()=>onTool("risk")} className="btn-outline"
+            style={{fontFamily:"'Inter',sans-serif",fontSize:12,color:INK_S,
+              border:`1px solid ${BORDER}`,background:"transparent",
+              padding:"9px 16px",borderRadius:2,cursor:"pointer",fontWeight:500}}>
+            Risk Scorer
+          </button>
         </div>
       </div>
-      <div style={{maxWidth:1400,margin:"0 auto",padding:"32px 28px"}}>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(340px,1fr))",gap:16}}>
-          {MER_TYPES.map((t,i)=>(
-            <ReportCard key={t.code} t={t} onDL={handleDL} downloading={downloading} idx={i}/>
-          ))}
-        </div>
+      <div style={{maxWidth:1400,margin:"0 auto",padding:"36px 32px",
+        display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(340px,1fr))",gap:18}}>
+        {MER_TYPES.map((t,i)=>(
+          <ReportCard key={t.code} t={t} onDL={dl} downloading={dlg} idx={i}/>
+        ))}
       </div>
       {toast&&<Toast msg={toast} onClose={()=>setToast(null)}/>}
     </div>
@@ -962,103 +824,103 @@ function Dashboard({onTool}){
 }
 
 // ── GUARDRAIL CHECKER ─────────────────────────────────────────────────────────
-const G_CHECKS=[
-  "G-01 Report type code assigned; section structure matches MER suite table",
-  "G-02 Executive Summary findings each traceable to a body section",
-  "G-03 All quantitative claims attributed to a named Tier 1 or Tier 2 source",
-  "G-04 AI limitation flags reviewed by human consultant for §3.4, §3.5, §7.1, §7.2",
-  "G-05 Risk Register contains ≥ 5 risks, each scored Likelihood × Impact (1–5)",
-  "G-06 Mandatory Disclaimer Block (§8) present and fully populated",
-  "G-07 No certified value language used anywhere in the report",
-  "G-08 Financial projections carry forward-looking statement language",
-  "G-09 Key Assumptions Register numbered and complete",
-  "G-10 Report classified CONFIDENTIAL with correct client name and engagement ref",
-  "G-11 Reviewed-by field populated — different person from Lead Consultant",
-  "G-12 AI disclosure statement included in Section 8",
-];
-const G_HUMAN=[3,10]; // 0-indexed items requiring explicit human sign-off
-
 function GuardrailChecker(){
   const[checked,setChecked]=useState({}),[ref_code,setRef]=useState("");
   const toggle=i=>setChecked(c=>({...c,[i]:!c[i]}));
   const done=Object.values(checked).filter(Boolean).length;
   const allDone=done===G_CHECKS.length;
+  const pct=Math.round(done/G_CHECKS.length*100);
   return(
     <div style={{background:BG,minHeight:"100vh"}}>
-      <div style={{height:56}}/>
-      <div style={{maxWidth:900,margin:"0 auto",padding:"40px 28px"}}>
-        <Mono style={{fontSize:9.5,color:GOLD,letterSpacing:"2.5px",fontWeight:700,
-          textTransform:"uppercase",display:"block",marginBottom:10}}>MERIDIAN · GUARDRAIL CHECKER</Mono>
-        <h1 style={{fontFamily:"'Cormorant Garamond',serif",fontSize:"clamp(30px,4vw,48px)",
-          fontWeight:700,color:FG,margin:"0 0 8px"}}>Pre-Release Compliance</h1>
-        <p style={{fontFamily:"'Inter',sans-serif",fontSize:14,color:FG_DIM,margin:"0 0 28px",lineHeight:1.6}}>
-          Complete all 12 items before releasing any Meridian report. Items flagged HUMAN REQ. require explicit human review — AI pre-population alone is insufficient.
+      <div style={{height:60}}/>
+      <div style={{maxWidth:900,margin:"0 auto",padding:"48px 32px"}}>
+        <SectionLabel num="TOOL" label="Guardrail Compliance Checker"/>
+        <h1 style={{fontFamily:"'Cormorant Garamond',serif",fontSize:"clamp(28px,4vw,44px)",
+          fontWeight:700,color:INK,margin:"0 0 12px",lineHeight:1.1}}>
+          Compliance Verification
+        </h1>
+        <p style={{fontFamily:"'Inter',sans-serif",fontSize:14,color:INK_S,margin:"0 0 28px",lineHeight:1.6,maxWidth:560}}>
+          Work through the 12-point compliance checklist before finalising any MER advisory report. Items marked HUMAN REQ. require explicit advisor sign-off.
         </p>
-        {/* Ref input */}
         <div style={{marginBottom:24}}>
-          <Mono style={{fontSize:9.5,color:FG_DIM,letterSpacing:"2px",textTransform:"uppercase",
-            fontWeight:600,display:"block",marginBottom:8}}>—— ENGAGEMENT REFERENCE</Mono>
+          <label style={{display:"block",fontFamily:"'Inter',sans-serif",fontSize:11,
+            color:INK_M,fontWeight:600,letterSpacing:"1.5px",textTransform:"uppercase",marginBottom:8}}>
+            Engagement Reference
+          </label>
           <input value={ref_code} onChange={e=>setRef(e.target.value)}
-            placeholder="MER-MKT-2026-001"
-            style={{background:PANEL,border:`1px solid ${BORDER}`,color:FG,
-              fontFamily:"'IBM Plex Mono',monospace",fontSize:13,
-              padding:"11px 14px",width:280,letterSpacing:".5px"}}/>
+            placeholder="e.g. MER-2025-001"
+            style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,
+              background:SURFACE,border:`1px solid ${BORDER}`,color:INK,
+              borderRadius:2,padding:"11px 14px",width:"100%",maxWidth:340,
+              boxSizing:"border-box",transition:"border-color .15s"}}/>
         </div>
-        {/* Progress */}
-        <div style={{marginBottom:24}}>
-          <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
-            <Mono style={{fontSize:10,color:GOLD,letterSpacing:"1.5px"}}>COMPLIANCE SCORE</Mono>
-            <Mono style={{fontSize:12,color:allDone?UP:GOLD,fontWeight:700}}>
-              {done}/{G_CHECKS.length} — {Math.round(done/G_CHECKS.length*100)}%
-            </Mono>
+        <div style={{background:SURFACE,border:`1px solid ${BORDER}`,borderRadius:3,
+          padding:"16px 20px",marginBottom:24,display:"flex",
+          alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:12}}>
+          <div>
+            <div style={{fontFamily:"'Inter',sans-serif",fontSize:11,color:INK_M,
+              textTransform:"uppercase",letterSpacing:"1.5px",marginBottom:8}}>Compliance Score</div>
+            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:allDone?UP:INK}}>
+              {done}/{G_CHECKS.length} — {pct}%
+            </div>
           </div>
-          <div style={{background:PANEL,border:`1px solid ${BORDER}`,height:4,position:"relative"}}>
-            <div style={{position:"absolute",left:0,top:0,bottom:0,
-              width:`${(done/G_CHECKS.length)*100}%`,
-              background:allDone?UP:GOLD,boxShadow:`0 0 8px ${allDone?UP:GOLD}`,
-              transition:"width .35s cubic-bezier(.22,1,.36,1),background .3s"}}/>
+          <div style={{flex:1,minWidth:200,maxWidth:320}}>
+            <div style={{height:4,background:BORDER_L,borderRadius:2,overflow:"hidden"}}>
+              <div style={{height:"100%",width:`${pct}%`,
+                background:allDone?UP:NAVY,borderRadius:2,
+                transition:"width .3s ease"}}/>
+            </div>
           </div>
         </div>
-        {/* List */}
-        <div style={{background:PANEL,border:`1px solid ${BORDER}`,marginBottom:20}}>
+        <div style={{background:SURFACE,border:`1px solid ${BORDER}`,borderRadius:3,overflow:"hidden",marginBottom:24}}>
           {G_CHECKS.map((text,i)=>{
-            const on=!!checked[i],needHuman=G_HUMAN.includes(i);
+            const isChecked=!!checked[i];
+            const needsHuman=G_HUMAN.includes(i);
             return(
-              <div key={i} onClick={()=>toggle(i)} style={{display:"flex",alignItems:"flex-start",
-                gap:14,padding:"14px 18px",
-                borderBottom:i<G_CHECKS.length-1?`1px solid rgba(255,255,255,.04)`:"none",
-                cursor:"pointer",userSelect:"none",
-                background:on?"rgba(91,173,122,.04)":"transparent",transition:"background .15s"}}>
-                <div style={{width:18,height:18,border:`1px solid ${on?UP:BORDER}`,
-                  background:on?UP:"transparent",flexShrink:0,marginTop:2,
+              <div key={i} onClick={()=>toggle(i)}
+                style={{display:"flex",alignItems:"flex-start",gap:14,padding:"14px 18px",
+                  borderBottom:i<G_CHECKS.length-1?`1px solid ${BORDER_L}`:"none",
+                  background:isChecked?"rgba(39,103,73,.03)":"transparent",
+                  cursor:"pointer",transition:"background .15s"}}
+                onMouseEnter={e=>{if(!isChecked)e.currentTarget.style.background=GOLD_DIM;}}
+                onMouseLeave={e=>{e.currentTarget.style.background=isChecked?"rgba(39,103,73,.03)":"transparent";}}>
+                <div style={{width:18,height:18,border:`1.5px solid ${isChecked?NAVY:BORDER}`,
+                  borderRadius:3,background:isChecked?NAVY:"transparent",
                   display:"flex",alignItems:"center",justifyContent:"center",
-                  transition:"all .15s"}}>
-                  {on&&<span style={{color:BG,fontSize:11,fontWeight:700}}>✓</span>}
+                  flexShrink:0,marginTop:2,transition:"all .15s"}}>
+                  {isChecked&&<span style={{color:"#fff",fontSize:11,lineHeight:1,fontWeight:700}}>✓</span>}
                 </div>
-                <span style={{fontFamily:"'Inter',sans-serif",fontSize:13.5,
-                  color:on?FG_DIM:FG,lineHeight:1.55,flex:1}}>{text}</span>
-                {needHuman&&!on&&(
-                  <Mono style={{fontSize:8.5,color:AMBER,border:`1px solid rgba(212,160,32,.3)`,
-                    padding:"2px 7px",letterSpacing:"1px",fontWeight:700,flexShrink:0,marginTop:2}}>HUMAN REQ.</Mono>
-                )}
+                <div style={{flex:1}}>
+                  <span style={{fontFamily:"'Inter',sans-serif",fontSize:13.5,
+                    color:isChecked?INK_M:INK,
+                    textDecoration:isChecked?"line-through":"none",
+                    lineHeight:1.5}}>{text}</span>
+                  {needsHuman&&(
+                    <span style={{fontFamily:"'Inter',sans-serif",fontSize:9,fontWeight:600,
+                      color:AMBER,background:"rgba(154,107,24,.06)",
+                      border:`1px solid rgba(154,107,24,.2)`,
+                      padding:"2px 6px",borderRadius:2,marginLeft:10,
+                      letterSpacing:"0.5px"}}>HUMAN REQ.</span>
+                  )}
+                </div>
               </div>
             );
           })}
         </div>
-        <div style={{display:"flex",gap:12,alignItems:"stretch"}}>
-          {allDone&&(
-            <div style={{flex:1,background:"rgba(91,173,122,.1)",
-              border:`1px solid rgba(91,173,122,.4)`,padding:"14px 20px",
-              fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:UP,
-              letterSpacing:"1.5px",fontWeight:700,textTransform:"uppercase"}}>
-              ✓ GUARDRAIL CHECK COMPLETE — CLEARED FOR RELEASE{ref_code&&` · ${ref_code}`}
-            </div>
-          )}
-          <button onClick={()=>setChecked({})} style={{background:"transparent",
-            border:`1px solid ${BORDER}`,color:FG_DIM,
-            fontFamily:"'IBM Plex Mono',monospace",fontSize:10,letterSpacing:"2px",
-            textTransform:"uppercase",fontWeight:600,padding:"10px 20px",cursor:"pointer"}}>RESET</button>
-        </div>
+        {allDone&&(
+          <div style={{border:`1px solid rgba(39,103,73,.3)`,background:"rgba(39,103,73,.05)",
+            borderRadius:3,padding:"16px 20px",marginBottom:20,
+            fontFamily:"'Inter',sans-serif",fontSize:13.5,color:UP,lineHeight:1.5}}>
+            All {G_CHECKS.length} compliance checks verified. This report meets MAS-GUARD-001 requirements.
+            {ref_code&&<span style={{fontFamily:"'IBM Plex Mono',monospace",marginLeft:8,fontSize:12}}>Ref: {ref_code}</span>}
+          </div>
+        )}
+        <button onClick={()=>{setChecked({});setRef("");}} className="btn-outline"
+          style={{fontFamily:"'Inter',sans-serif",fontSize:12,color:INK_S,
+            border:`1px solid ${BORDER}`,background:"transparent",
+            padding:"10px 20px",borderRadius:2,cursor:"pointer",fontWeight:500}}>
+          Reset Checklist
+        </button>
       </div>
     </div>
   );
@@ -1067,115 +929,169 @@ function GuardrailChecker(){
 // ── RISK SCORER ───────────────────────────────────────────────────────────────
 function RiskScorer(){
   const[risks,setRisks]=useState([
-    {id:1,name:"STR market oversupply post-VM2026",l:4,i:4},
-    {id:2,name:"Construction cost overrun",l:3,i:4},
-    {id:3,name:"Land acquisition above RM12M threshold",l:3,i:5},
+    {id:1,name:"Planning approval delay",l:3,i:4},
+    {id:2,name:"Market absorption slower than forecast",l:4,i:3},
+    {id:3,name:"Construction cost overrun",l:3,i:5},
+    {id:4,name:"Interest rate increase",l:2,i:4},
+    {id:5,name:"Regulatory change (Act 242)",l:2,i:5},
   ]);
-  const[next,setNext]=useState(4),[newName,setNewName]=useState("");
-  const add=()=>{
-    if(!newName.trim())return;
-    setRisks(r=>[...r,{id:next,name:newName.trim(),l:3,i:3}]);
-    setNext(n=>n+1);setNewName("");
+  const[input,setInput]=useState(""),nextId=useRef(10);
+  const addRisk=()=>{
+    if(!input.trim())return;
+    setRisks(r=>[...r,{id:nextId.current++,name:input.trim(),l:3,i:3}]);
+    setInput("");
   };
-  const upd=(id,k,v)=>setRisks(r=>r.map(x=>x.id===id?{...x,[k]:v}:x));
-  const rm=id=>setRisks(r=>r.filter(x=>x.id!==id));
-  const sColor=s=>s>=15?DOWN:s>=8?AMBER:UP;
-  const sLabel=s=>s>=15?"Critical":s>=8?"High":"Medium";
+  const updateRisk=(id,field,delta)=>{
+    setRisks(r=>r.map(x=>x.id===id?{...x,[field]:Math.max(1,Math.min(5,x[field]+delta))}:x));
+  };
+  const delRisk=(id)=>setRisks(r=>r.filter(x=>x.id!==id));
+  const getSev=(score)=>score>=15?"Critical":score>=9?"High":score>=4?"Medium":"Low";
+  const getSevColor=(score)=>score>=15?DOWN:score>=9?GOLD:score>=4?AMBER:UP;
+  const g05ok=risks.length>=5;
+  const Stepper=({val,onMinus,onPlus})=>(
+    <div style={{display:"flex",alignItems:"center",gap:0,border:`1px solid ${BORDER}`,borderRadius:2,overflow:"hidden"}}>
+      <button onClick={onMinus} style={{width:28,height:32,background:"transparent",
+        border:"none",cursor:"pointer",color:INK_S,fontSize:14,fontWeight:600,
+        borderRight:`1px solid ${BORDER}`,display:"flex",alignItems:"center",justifyContent:"center"}}>−</button>
+      <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:700,
+        color:NAVY,width:24,textAlign:"center"}}>{val}</span>
+      <button onClick={onPlus} style={{width:28,height:32,background:"transparent",
+        border:"none",cursor:"pointer",color:INK_S,fontSize:14,fontWeight:600,
+        borderLeft:`1px solid ${BORDER}`,display:"flex",alignItems:"center",justifyContent:"center"}}>+</button>
+    </div>
+  );
   return(
     <div style={{background:BG,minHeight:"100vh"}}>
-      <div style={{height:56}}/>
-      <div style={{maxWidth:900,margin:"0 auto",padding:"40px 28px"}}>
-        <Mono style={{fontSize:9.5,color:GOLD,letterSpacing:"2.5px",fontWeight:700,
-          textTransform:"uppercase",display:"block",marginBottom:10}}>MERIDIAN · RISK SCORER</Mono>
-        <h1 style={{fontFamily:"'Cormorant Garamond',serif",fontSize:"clamp(30px,4vw,48px)",
-          fontWeight:700,color:FG,margin:"0 0 8px"}}>Risk Register Builder</h1>
-        <p style={{fontFamily:"'Inter',sans-serif",fontSize:14,color:FG_DIM,margin:"0 0 28px",lineHeight:1.6}}>
-          Add risks and score Likelihood × Impact (1–5 each). Minimum 5 risks required per guardrail G-05. Scores 15–25 Critical · 8–14 High · &lt;8 Medium.
+      <div style={{height:60}}/>
+      <div style={{maxWidth:900,margin:"0 auto",padding:"48px 32px"}}>
+        <SectionLabel num="TOOL" label="Risk Register Builder"/>
+        <h1 style={{fontFamily:"'Cormorant Garamond',serif",fontSize:"clamp(28px,4vw,44px)",
+          fontWeight:700,color:INK,margin:"0 0 12px",lineHeight:1.1}}>
+          Risk Register
+        </h1>
+        <p style={{fontFamily:"'Inter',sans-serif",fontSize:14,color:INK_S,margin:"0 0 28px",lineHeight:1.6,maxWidth:560}}>
+          Build and score your engagement risk register. G-05 requires a minimum of 5 risks, each scored Likelihood × Impact (1–5 scale).
         </p>
-        {/* Add row */}
-        <div style={{display:"flex",gap:10,marginBottom:20}}>
-          <input value={newName} onChange={e=>setNewName(e.target.value)}
-            onKeyDown={e=>e.key==="Enter"&&add()}
-            placeholder="Add a risk description..."
-            style={{flex:1,background:PANEL,border:`1px solid ${BORDER}`,color:FG,
-              fontFamily:"'Inter',sans-serif",fontSize:13.5,padding:"11px 14px"}}/>
-          <button onClick={add} style={{background:GOLD_DIM,border:`1px solid rgba(196,146,42,.4)`,
-            color:GOLD_B,fontFamily:"'IBM Plex Mono',monospace",fontSize:10,
-            letterSpacing:"2px",textTransform:"uppercase",fontWeight:700,
-            padding:"0 20px",cursor:"pointer"}}>+ ADD</button>
+        <div style={{display:"flex",gap:10,marginBottom:28,maxWidth:560}}>
+          <input value={input} onChange={e=>setInput(e.target.value)}
+            onKeyDown={e=>{if(e.key==="Enter")addRisk();}}
+            placeholder="Describe a new risk factor..."
+            style={{flex:1,fontFamily:"'Inter',sans-serif",fontSize:13,
+              background:SURFACE,border:`1px solid ${BORDER}`,color:INK,
+              borderRadius:2,padding:"11px 14px",boxSizing:"border-box",
+              transition:"border-color .15s"}}/>
+          <button onClick={addRisk} className="btn-primary"
+            style={{background:NAVY,color:"#fff",border:"none",
+              padding:"11px 20px",borderRadius:2,cursor:"pointer",
+              fontFamily:"'Inter',sans-serif",fontSize:12,fontWeight:600,
+              letterSpacing:"1px",textTransform:"uppercase",whiteSpace:"nowrap"}}>
+            + Add
+          </button>
         </div>
-        {/* Table */}
-        <div style={{background:PANEL,border:`1px solid ${BORDER}`,marginBottom:16}}>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 80px 80px 64px 90px 28px",
-            gap:8,padding:"10px 16px",borderBottom:`1px solid ${BORDER}`}}>
-            {["Risk","Likelihood","Impact","Score","Severity",""].map((h,i)=>(
-              <Mono key={i} style={{fontSize:9.5,color:GOLD,letterSpacing:"1.5px",fontWeight:700,
-                textTransform:"uppercase",textAlign:i>0?"center":"left"}}>{h}</Mono>
+        <div style={{background:SURFACE,border:`1px solid ${BORDER}`,borderRadius:3,
+          overflow:"hidden",marginBottom:20}}>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 110px 110px 80px 80px 32px",
+            padding:"10px 18px",background:SURFACE_S,borderBottom:`1px solid ${BORDER}`,gap:10}}>
+            {["Risk Factor","Likelihood (1–5)","Impact (1–5)","Score","Severity",""].map((h,i)=>(
+              <span key={i} style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9.5,
+                color:INK_M,textTransform:"uppercase",letterSpacing:"0.5px",
+                textAlign:i>0?"center":"left"}}>{h}</span>
             ))}
           </div>
+          {risks.length===0&&(
+            <div style={{padding:"32px 18px",textAlign:"center",
+              fontFamily:"'Inter',sans-serif",fontSize:13,color:INK_F}}>
+              No risks added yet. Add at least 5 to meet G-05.
+            </div>
+          )}
           {risks.map((r,i)=>{
             const score=r.l*r.i;
+            const sev=getSev(score);
+            const col=getSevColor(score);
             return(
-              <div key={r.id} style={{display:"grid",
-                gridTemplateColumns:"1fr 80px 80px 64px 90px 28px",
-                gap:8,padding:"12px 16px",alignItems:"center",
-                borderBottom:i<risks.length-1?`1px solid rgba(255,255,255,.04)`:"none",
-                background:i%2===0?"transparent":"rgba(255,255,255,.01)"}}>
-                <span style={{fontFamily:"'Inter',sans-serif",fontSize:13,color:FG}}>{r.name}</span>
-                {[["l",r.l],["i",r.i]].map(([k,v])=>(
-                  <div key={k} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:3}}>
-                    <button onClick={()=>upd(r.id,k,Math.max(1,v-1))} style={{
-                      width:20,height:20,background:"transparent",border:`1px solid ${BORDER}`,
-                      color:FG_DIM,cursor:"pointer",fontFamily:"'IBM Plex Mono',monospace",fontSize:11}}>−</button>
-                    <Mono style={{fontSize:14,fontWeight:700,color:GOLD,minWidth:16,textAlign:"center"}}>{v}</Mono>
-                    <button onClick={()=>upd(r.id,k,Math.min(5,v+1))} style={{
-                      width:20,height:20,background:"transparent",border:`1px solid ${BORDER}`,
-                      color:FG_DIM,cursor:"pointer",fontFamily:"'IBM Plex Mono',monospace",fontSize:11}}>+</button>
-                  </div>
-                ))}
-                <Mono style={{fontSize:22,fontWeight:700,color:sColor(score),textAlign:"center"}}>{score}</Mono>
-                <Mono style={{fontSize:9.5,fontWeight:700,letterSpacing:"1px",
-                  textAlign:"center",color:sColor(score)}}>{sLabel(score)}</Mono>
-                <button onClick={()=>rm(r.id)} style={{background:"transparent",border:"none",
-                  color:FG_MUTE,cursor:"pointer",fontSize:14,fontFamily:"'IBM Plex Mono',monospace"}}>×</button>
+              <div key={r.id}
+                style={{display:"grid",gridTemplateColumns:"1fr 110px 110px 80px 80px 32px",
+                  padding:"12px 18px",
+                  borderBottom:i<risks.length-1?`1px solid ${BORDER_L}`:"none",
+                  background:i%2===0?"transparent":SURFACE_S,
+                  alignItems:"center",gap:10}}>
+                <span style={{fontFamily:"'Inter',sans-serif",fontSize:13,color:INK}}>{r.name}</span>
+                <div style={{display:"flex",justifyContent:"center"}}>
+                  <Stepper val={r.l} onMinus={()=>updateRisk(r.id,"l",-1)} onPlus={()=>updateRisk(r.id,"l",1)}/>
+                </div>
+                <div style={{display:"flex",justifyContent:"center"}}>
+                  <Stepper val={r.i} onMinus={()=>updateRisk(r.id,"i",-1)} onPlus={()=>updateRisk(r.id,"i",1)}/>
+                </div>
+                <div style={{textAlign:"center"}}>
+                  <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:22,fontWeight:700,color:col}}>{score}</span>
+                </div>
+                <div style={{textAlign:"center"}}>
+                  <SevPill sev={sev}/>
+                </div>
+                <button onClick={()=>delRisk(r.id)}
+                  style={{background:"none",border:"none",color:INK_F,cursor:"pointer",
+                    fontSize:16,lineHeight:1,padding:0,
+                    display:"flex",alignItems:"center",justifyContent:"center"}}>×</button>
               </div>
             );
           })}
         </div>
-        {/* G-05 indicator */}
-        <div style={{display:"flex",alignItems:"center",gap:12,background:PANEL,
-          border:`1px solid ${risks.length>=5?"rgba(91,173,122,.3)":BORDER}`,padding:"12px 16px"}}>
-          <Mono style={{fontSize:10.5,color:risks.length>=5?UP:AMBER,fontWeight:700}}>
-            {risks.length>=5?"✓":"⚠"}
-          </Mono>
-          <Mono style={{fontSize:10,color:FG_DIM,letterSpacing:"1px"}}>
-            G-05: {risks.length}/5 minimum — {risks.length>=5?"COMPLIANT":`${5-risks.length} MORE REQUIRED`}
-          </Mono>
+        <div style={{border:`1px solid ${g05ok?"rgba(39,103,73,.3)":"rgba(154,107,24,.2)"}`,
+          background:g05ok?"rgba(39,103,73,.05)":"rgba(154,107,24,.05)",
+          borderRadius:3,padding:"14px 18px",marginBottom:20,
+          display:"flex",alignItems:"center",gap:10}}>
+          <div style={{width:6,height:6,borderRadius:"50%",
+            background:g05ok?UP:AMBER,flexShrink:0}}/>
+          <span style={{fontFamily:"'Inter',sans-serif",fontSize:13,color:g05ok?UP:AMBER}}>
+            G-05 Compliance: {risks.length}/{5} risks registered
+            {g05ok?" — requirement met":" — minimum 5 required"}
+          </span>
         </div>
       </div>
     </div>
   );
 }
 
-// ── APP ───────────────────────────────────────────────────────────────────────
+// ── APP ROOT ──────────────────────────────────────────────────────────────────
 export default function App(){
-  const[booting,setBooting]=useState(true);
+  const[booted,setBooted]=useState(false);
   const[page,setPage]=useState("landing");
   const scrollRef=useRef(null);
-  const go=p=>setPage(p);
-  const back=()=>setPage(page==="dashboard"?"landing":"dashboard");
+
+  const enterApp=useCallback(()=>{
+    setPage("dashboard");
+  },[]);
+
+  const goHome=useCallback(()=>{
+    setPage("landing");
+  },[]);
+
+  const goTool=useCallback((tool)=>{
+    setPage(tool);
+  },[]);
+
+  const onBack=useCallback(()=>{
+    if(page==="dashboard")goHome();
+    else setPage("dashboard");
+  },[page,goHome]);
+
   return(
     <>
       <style>{CSS}</style>
-      {booting&&<Boot onDone={()=>setBooting(false)}/>}
-      <Nav page={page} onBack={back}/>
-      <div ref={scrollRef} style={{position:"fixed",inset:0,overflowY:"auto",
-        overflowX:"hidden",scrollbarWidth:"thin"}}>
-        {page==="landing"&&<LandingPage onEnter={()=>go("dashboard")} scrollRef={scrollRef} active={!booting}/>}
-        {page==="dashboard"&&<Dashboard onTool={go}/>}
-        {page==="checker"&&<GuardrailChecker/>}
-        {page==="risk"&&<RiskScorer/>}
-      </div>
+      {!booted&&<Boot onDone={()=>setBooted(true)}/>}
+      {booted&&(
+        <>
+          <Nav page={page} onBack={onBack}/>
+          {page==="landing"&&(
+            <div style={{paddingTop:60,height:"100vh",overflow:"hidden",boxSizing:"border-box"}}>
+              <LandingPage onEnter={enterApp} scrollRef={scrollRef} active={page==="landing"}/>
+            </div>
+          )}
+          {page==="dashboard"&&<Dashboard onTool={goTool}/>}
+          {page==="checker"&&<GuardrailChecker/>}
+          {page==="risk"&&<RiskScorer/>}
+        </>
+      )}
     </>
   );
 }
