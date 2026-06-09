@@ -1,1097 +1,1330 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 
-// ── PALETTE ───────────────────────────────────────────────────────────────────
-const BG="#FAF9F6", SURFACE="#FFFFFF", SURFACE_S="#F3F1EC";
-const NAVY_SECTION="#1B3356";
-const BORDER="#E2DDD6", BORDER_L="#EBE8E2";
-const INK="#1A2130", INK_S="#485870", INK_M="#8B98A8", INK_F="#C4CAD4";
-const NAVY="#1B3356", NAVY_L="#24406C", NAVY_DIM="rgba(27,51,86,.07)";
-const GOLD="#A87928", GOLD_B="#C09520", GOLD_DIM="rgba(168,121,40,.08)";
-const UP="#276749", DOWN="#B0392D", AMBER="#9A6B18";
+// ─── DATA ────────────────────────────────────────────────────────────────────
 
-// ── TIMING ────────────────────────────────────────────────────────────────────
-const SCATTER_DUR=240, ASSEMBLE_DUR=360, SCROLL_DUR=580;
+const REPORT_TYPES = [
+  { code: "MER-MKT", label: "Market Study", sections: [1,2,3,5,8], desc: "Market entry & demand analysis" },
+  { code: "MER-HBU", label: "HBU Advisory", sections: [1,2,3,5,7,8], desc: "Highest & best use determination" },
+  { code: "MER-DEV", label: "Development Feasibility", sections: [1,2,3,4,5,6,7,8], desc: "Full feasibility opinion" },
+  { code: "MER-INV", label: "Investment Advisory", sections: [1,2,4,5,6,8], desc: "Investment decision memo" },
+  { code: "MER-POS", label: "Asset Repositioning", sections: [1,2,3,5,7,8], desc: "Repositioning strategy" },
+  { code: "MER-PORT", label: "Portfolio Advisory", sections: [1,2,4,5,6,8], desc: "Multi-asset portfolio review" },
+  { code: "MER-SITE", label: "Site Selection", sections: [1,2,3,5,8], desc: "Site suitability & selection" },
+];
 
-// ── DOMAIN COLOR MAP ──────────────────────────────────────────────────────────
-const DC={
-  "Scope":     {bg:"rgba(27,51,86,.06)",  bd:"rgba(27,51,86,.18)",  tx:NAVY},
-  "Evidence":  {bg:GOLD_DIM,             bd:"rgba(168,121,40,.2)", tx:GOLD},
-  "AI Use":    {bg:"rgba(39,103,73,.07)", bd:"rgba(39,103,73,.2)",  tx:UP},
-  "Disclosure":{bg:"rgba(176,57,45,.06)", bd:"rgba(176,57,45,.2)",  tx:DOWN},
-  "Process":   {bg:"rgba(154,107,24,.06)",bd:"rgba(154,107,24,.2)", tx:AMBER},
+const ALL_SECTIONS = [
+  { num: 1, name: "Engagement Header", required: true },
+  { num: 2, name: "Executive Summary", required: true },
+  { num: 3, name: "Market Analysis", required: false },
+  { num: 4, name: "Financial Analysis", required: false },
+  { num: 5, name: "Findings & Recommendation", required: true },
+  { num: 6, name: "Implementation Roadmap", required: false },
+  { num: 7, name: "Highest & Best Use", required: false },
+  { num: 8, name: "Disclaimers & Sign-Off", required: true },
+];
+
+const GUARDRAILS = [
+  { code: "G-SCOPE-01", domain: "Scope", severity: "Critical", waivable: false, label: "No certified value language", desc: "Report must not be mistaken for a RICS Red Book or USPAP certified valuation." },
+  { code: "G-SCOPE-02", domain: "Scope", severity: "High", waivable: "MD", label: "Scope creep check", desc: "Report scope must match signed Terms of Engagement." },
+  { code: "G-SCOPE-03", domain: "Scope", severity: "High", waivable: false, label: "Specialist asset flag", desc: "Data centres, hospitals, heritage buildings require named specialist." },
+  { code: "G-EVID-01", domain: "Evidence", severity: "Critical", waivable: false, label: "All claims sourced", desc: "Every quantitative claim attributed to named Tier 1/2 source with date." },
+  { code: "G-EVID-02", domain: "Evidence", severity: "High", waivable: "LC", label: "Comparable minimums met", desc: "Residential ≥5, Commercial ≥4, Industrial ≥4, Land ≥3 comparables." },
+  { code: "G-EVID-03", domain: "Evidence", severity: "Critical", waivable: false, label: "Forward-looking statements labelled", desc: "All projections carry FLS language with base date and horizon." },
+  { code: "G-EVID-04", domain: "Evidence", severity: "High", waivable: false, label: "Site visit documented", desc: "HBU/Roadmap sections require site visit log or desktop-only caveat." },
+  { code: "G-EVID-05", domain: "Evidence", severity: "Medium", waivable: "disclosure", label: "Data currency ≤6 months", desc: "Market rents, vacancy, transactions: max 6 months old." },
+  { code: "G-AI-01", domain: "AI Use", severity: "Critical", waivable: false, label: "AI disclosure block present", desc: "Section 8 must contain the standard AI disclosure statement." },
+  { code: "G-AI-02", domain: "AI Use", severity: "Critical", waivable: false, label: "AI limitation zones reviewed", desc: "Zoning, HBU legal, site condition, political risk reviewed by human." },
+  { code: "G-AI-03", domain: "AI Use", severity: "High", waivable: false, label: "No black-box outputs", desc: "Consultant must explain all AI-generated numbers before including them." },
+  { code: "G-AI-04", domain: "AI Use", severity: "Medium", waivable: "disclosure", label: "Historical bias alert", desc: "AI training data period reviewed for geographic/asset-class gaps." },
+  { code: "G-AI-05", domain: "AI Use", severity: "Critical", waivable: false, label: "No standalone AI value opinion", desc: "Any indicative value must be reviewed and signed off by consultant." },
+  { code: "G-DISC-01", domain: "Disclosure", severity: "Critical", waivable: false, label: "Conflict of interest disclosed", desc: "Explicit COI statement required; Meridian interests in subject property." },
+  { code: "G-DISC-02", domain: "Disclosure", severity: "High", waivable: "LC", label: "Reliance limitation stated", desc: "Named reliance parties; third-party reliance requires written consent." },
+  { code: "G-DISC-03", domain: "Disclosure", severity: "High", waivable: false, label: "Malaysia regulatory compliance", desc: "Act 242, BOVEAP, NLC 1965, JPPH data terms noted where applicable." },
+  { code: "G-DISC-04", domain: "Disclosure", severity: "Medium", waivable: false, label: "ESG & climate risk noted", desc: "Flood hazard, GBI/LEED status, green financing eligibility from 2025." },
+  { code: "G-PROC-01", domain: "Process", severity: "Critical", waivable: false, label: "Dual sign-off (different persons)", desc: "Lead Consultant and Reviewing Advisor must be two distinct individuals." },
+  { code: "G-PROC-02", domain: "Process", severity: "Medium", waivable: false, label: "Version control", desc: "Drafts watermarked DRAFT; finals marked FINAL with date." },
+  { code: "G-PROC-03", domain: "Process", severity: "High", waivable: false, label: "7-year retention", desc: "Report + workings + AI prompts/outputs retained in DMS for 7 years." },
+  { code: "G-PROC-04", domain: "Process", severity: "Medium", waivable: "LC", label: "Change order for scope changes", desc: "Material instruction changes require documented Change Order." },
+  { code: "G-PROC-05", domain: "Process", severity: "High", waivable: false, label: "Escalation triggers checked", desc: "Litigation, PEP, government land, sanctions, adverse conclusions → MD." },
+];
+
+const ENGAGEMENTS = [
+  { ref: "MER-DEV-2026-014", client: "Ivory Properties Sdn. Bhd.", type: "MER-DEV", property: "Lot 4892, Jalan Hang Tuah, Melaka", status: "review", lead: "Ahmad Rizal Hasan, MRICS", date: "08 Jun 2026", guardrailScore: { pass: 9, warn: 3, fail: 1 } },
+  { ref: "MER-INV-2026-011", client: "Maju Capital Partners", type: "MER-INV", property: "Menara Symphony, KL Sentral", status: "draft", lead: "Nurul Ain Zakaria, MRICS", date: "02 Jun 2026", guardrailScore: { pass: 14, warn: 1, fail: 0 } },
+  { ref: "MER-MKT-2026-009", client: "Sunway REIT Management", type: "MER-MKT", property: "Penang Waterfront Precinct", status: "draft", lead: "Lee Chuan Wei, MBVAP", date: "28 May 2026", guardrailScore: { pass: 11, warn: 2, fail: 0 } },
+  { ref: "MER-HBU-2026-007", client: "Prasarana Malaysia Berhad", type: "MER-HBU", property: "Lot 12, Stesen Bandar Utama", status: "completed", lead: "Ahmad Rizal Hasan, MRICS", date: "15 May 2026", guardrailScore: { pass: 15, warn: 0, fail: 0 } },
+];
+
+const RISK_ROWS = [
+  { risk: "Heritage rezoning delay", l: 3, i: 4, mitigation: "Pre-engage JKKN; heritage consultant retained" },
+  { risk: "Construction cost overrun (>10%)", l: 3, i: 3, mitigation: "Fixed-price D&B contract; 12% contingency" },
+  { risk: "Retail take-up below absorption", l: 2, i: 4, mitigation: "Reduce retail GFA; convert to co-working" },
+  { risk: "Interest rate increase >100bps", l: 2, i: 3, mitigation: "Rate cap instrument; 70% fixed financing" },
+  { risk: "Soil contamination (pre-1990 use)", l: 1, i: 5, mitigation: "Phase I ESA commissioned; Phase II if required" },
+];
+
+// ─── UTILITY ─────────────────────────────────────────────────────────────────
+
+const riskScore = (l, i) => l * i;
+const riskColor = (score) => {
+  if (score >= 10) return { bg: "#fde8e8", color: "#991b1b" };
+  if (score >= 6)  return { bg: "#fef3c7", color: "#92400e" };
+  return { bg: "#d1fae5", color: "#065f46" };
 };
 
-// ── DATA ──────────────────────────────────────────────────────────────────────
-const MER_TYPES=[
-  {code:"MER-MKT",type:"Market Entry / Market Study",pages:"15–30",sections:[1,2,3,4,5,6,8],tag:"Most Used",
-   desc:"End-to-end market entry study. Covers primary market area delineation, supply/demand analysis, competitive landscape, macro & regulatory environment, financial analysis, and implementation roadmap."},
-  {code:"MER-HBU",type:"Highest & Best Use Advisory",pages:"10–20",sections:[1,2,3,4,5,7,8],tag:"Technical",
-   desc:"Four-test HBU determination: legally permissible, physically possible, financially feasible, maximally productive. AI-assisted analysis in 7.1 and 7.2 requires licensed planner/legal review."},
-  {code:"MER-DEV",type:"Development Feasibility Opinion",pages:"20–40",sections:[1,2,3,4,5,6,7,8],tag:"Comprehensive",
-   desc:"Full eight-section development feasibility. Includes NPV/IRR modelling, HBU determination, risk register, and phased implementation roadmap. Highest scope of all MER types."},
-  {code:"MER-INV",type:"Investment Advisory Memo",pages:"8–15",sections:[1,2,4,5,6,8],tag:"Executive",
-   desc:"Executive-format investment memo. Financial analysis, returns (NPV/IRR), risk register, and implementation roadmap. Designed for investment committee or board-level presentation."},
-  {code:"MER-POS",type:"Asset Repositioning Strategy",pages:"12–25",sections:[1,2,3,5,7,8],tag:"Strategic",
-   desc:"Repositioning-focused advisory. Market context, HBU-based repositioning options, findings and strategic alternatives considered. Excludes financial modelling section."},
-  {code:"MER-PORT",type:"Portfolio Advisory",pages:"20–50",sections:[1,2,4,5,6,8],tag:"Multi-Asset",
-   desc:"Multi-asset portfolio advisory. Financial analysis and implementation roadmap across asset classes. Excludes site-specific HBU and individual market sections — aggregate analysis only."},
-  {code:"MER-SITE",type:"Site Selection Assessment",pages:"10–20",sections:[1,2,3,4,5,8],tag:"Site-Level",
-   desc:"Concise site assessment. Primary market area, supply/demand analysis, indicative financial assessment, and findings with site-selection recommendation. Focused, practical scope."},
-];
-
-const GUARDRAILS=[
-  {code:"G-SCOPE-01",domain:"Scope",  sev:"Critical",title:"Consultancy vs. Certified Valuation"},
-  {code:"G-SCOPE-02",domain:"Scope",  sev:"High",   title:"Engagement Scope Creep"},
-  {code:"G-SCOPE-03",domain:"Scope",  sev:"High",   title:"Asset Class Competence"},
-  {code:"G-EVID-01", domain:"Evidence",sev:"Critical",title:"Source Attribution"},
-  {code:"G-EVID-02", domain:"Evidence",sev:"High",   title:"Transaction Comparables"},
-  {code:"G-EVID-03", domain:"Evidence",sev:"Critical",title:"Forward-Looking Statements"},
-  {code:"G-EVID-04", domain:"Evidence",sev:"High",   title:"Site Visit Requirement"},
-  {code:"G-EVID-05", domain:"Evidence",sev:"Medium", title:"Data Currency"},
-  {code:"G-AI-01",   domain:"AI Use",  sev:"Critical",title:"AI Disclosure (Non-Negotiable)"},
-  {code:"G-AI-02",   domain:"AI Use",  sev:"Critical",title:"AI Limitation Zones"},
-  {code:"G-AI-03",   domain:"AI Use",  sev:"High",   title:"No Black-Box Outputs"},
-  {code:"G-AI-04",   domain:"AI Use",  sev:"Medium", title:"Historical Bias Alert"},
-  {code:"G-AI-05",   domain:"AI Use",  sev:"Critical",title:"No AI Value Opinions"},
-  {code:"G-DISC-01", domain:"Disclosure",sev:"Critical",title:"Conflict of Interest"},
-  {code:"G-DISC-02", domain:"Disclosure",sev:"High",  title:"Reliance Limitation"},
-  {code:"G-DISC-03", domain:"Disclosure",sev:"High",  title:"Regulatory Compliance (MY)"},
-  {code:"G-DISC-04", domain:"Disclosure",sev:"Medium",title:"ESG and Climate Risk"},
-  {code:"G-PROC-01", domain:"Process",  sev:"Critical",title:"Dual Sign-Off"},
-  {code:"G-PROC-02", domain:"Process",  sev:"Medium", title:"Version Control"},
-  {code:"G-PROC-03", domain:"Process",  sev:"High",   title:"Retention (7 years)"},
-  {code:"G-PROC-04", domain:"Process",  sev:"Medium", title:"Client Instruction Changes"},
-  {code:"G-PROC-05", domain:"Process",  sev:"High",   title:"Escalation Triggers"},
-];
-
-const LP_SECTIONS=[
-  {id:"lp-s0",num:"S00",label:"ACCESS"},
-  {id:"lp-s1",num:"S01",label:"REPORT SUITE"},
-  {id:"lp-s2",num:"S02",label:"GUARDRAILS"},
-  {id:"lp-s3",num:"S03",label:"METHODOLOGY"},
-  {id:"lp-s4",num:"S04",label:"DEPLOY"},
-];
-
-const REPORT_SECTIONS=[
-  {n:1,title:"Engagement Header",     cond:false,desc:"Client, engagement ref, subject, date, prepared-by, reviewed-by, classification, conflict statement, reliance limitation"},
-  {n:2,title:"Executive Summary",     cond:false,desc:"Purpose (2–3 sentences), key findings (3–5 bullets, ≤25 words each), primary recommendation, decision-maker caveats"},
-  {n:3,title:"Market Analysis",       cond:true, desc:"§3.1 PMA definition · §3.2 Supply analysis · §3.3 Demand analysis · §3.4 Competitive landscape · §3.5 Macro & regulatory"},
-  {n:4,title:"Financial Analysis",    cond:true, desc:"§4.1 Revenue projections · §4.2 Cost build-up · §4.3 Returns (NPV/IRR/EM) · §4.4 Scenario analysis · §4.5 Assumptions register"},
-  {n:5,title:"Findings & Recommendation",cond:false,desc:"§5.1 Evidence summary · §5.2 Risk register (≥5 risks, L×I scored) · §5.3 Go/No-Go verdict · §5.4 Alternatives considered"},
-  {n:6,title:"Implementation Roadmap",cond:true, desc:"Phasing plan with milestones · Key dependencies & critical path · Stakeholder map · KPIs and success metrics"},
-  {n:7,title:"HBU Determination",     cond:true, desc:"Test 1: Legally permissible · Test 2: Physically possible · Test 3: Financially feasible · Test 4: Maximally productive"},
-  {n:8,title:"Disclaimers & Sign-Off",cond:false,desc:"Mandatory disclaimer block · Guardrail compliance checklist · Dual sign-off (Lead Consultant + Reviewing Advisor)"},
-];
-
-const G_CHECKS=[
-  "G-01 Report type code assigned; section structure matches MER suite table",
-  "G-02 Executive Summary findings each traceable to a body section",
-  "G-03 All quantitative claims attributed to a named Tier 1 or Tier 2 source",
-  "G-04 AI limitation flags reviewed by human consultant for §3.4, §3.5, §7.1, §7.2",
-  "G-05 Risk Register contains ≥ 5 risks, each scored Likelihood × Impact (1–5)",
-  "G-06 Mandatory Disclaimer Block (§8) present and fully populated",
-  "G-07 No certified value language used anywhere in the report",
-  "G-08 Financial projections carry forward-looking statement language",
-  "G-09 Key Assumptions Register numbered and complete",
-  "G-10 Report classified CONFIDENTIAL with correct client name and engagement ref",
-  "G-11 Reviewed-by field populated — different person from Lead Consultant",
-  "G-12 AI disclosure statement included in Section 8",
-];
-const G_HUMAN=[3,10];
-
-// ── CSS ───────────────────────────────────────────────────────────────────────
-const CSS=`
-@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap');
-@keyframes bootFadeOut{0%{opacity:1;visibility:visible}100%{opacity:0;visibility:hidden}}
-@keyframes bootReveal{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-@keyframes fadeIn{from{opacity:0}to{opacity:1}}
-@keyframes slideUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
-@keyframes toastIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
-@keyframes dotPulse{0%,100%{opacity:.35}50%{opacity:1}}
-@keyframes hintFloat{0%,100%{transform:translateX(-50%) translateY(0px)}50%{transform:translateX(-50%) translateY(5px)}}
-body{margin:0;font-family:'Inter',sans-serif;color:${INK};background:${BG};-webkit-font-smoothing:antialiased}
-::-webkit-scrollbar{width:6px}
-::-webkit-scrollbar-track{background:${SURFACE_S}}
-::-webkit-scrollbar-thumb{background:${BORDER};border-radius:3px}
-::-webkit-scrollbar-thumb:hover{background:${INK_F}}
-.card,.mer-card{transition:box-shadow .25s,transform .25s}
-.card:hover,.mer-card:hover{box-shadow:0 8px 30px rgba(26,33,48,.1);transform:translateY(-2px)}
-.lp-card{transition:box-shadow .25s,border-color .25s,transform .25s;cursor:default}
-.lp-card:hover{box-shadow:0 8px 30px rgba(26,33,48,.1);border-color:${GOLD}!important;transform:translateY(-2px)}
-.lp-card:hover .lp-num{color:${GOLD_B}!important}
-.gr-row{transition:background .15s;cursor:pointer}
-.gr-row:hover{background:${GOLD_DIM}!important}
-.btn-primary{transition:background .15s;cursor:pointer}
-.btn-primary:hover{background:${NAVY_L}!important}
-.btn-outline{transition:border-color .15s,color .15s;cursor:pointer}
-.btn-outline:hover{border-color:${GOLD}!important;color:${GOLD}!important}
-input:focus{outline:none;border-color:${NAVY}!important;box-shadow:0 0 0 3px ${NAVY_DIM}!important}
-input::placeholder{color:${INK_F}}
-.lp-fit{height:calc(100vh - 60px);max-height:calc(100vh - 60px);display:flex;flex-direction:column;overflow:hidden}
-#lp-s0{height:calc(100vh - 60px);max-height:calc(100vh - 60px)}
-.lp-fit>section{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;justify-content:flex-start;width:100%;box-sizing:border-box;padding:clamp(24px,3.5vh,52px) 0!important}
-`;
-
-// ── HELPERS ───────────────────────────────────────────────────────────────────
-function useInView(t=.05){
-  const r=useRef(null),[v,sv]=useState(false);
-  useEffect(()=>{
-    if(!r.current)return;
-    const o=new IntersectionObserver(([e])=>{if(e.isIntersecting)sv(true);},{threshold:t});
-    o.observe(r.current);return()=>o.disconnect();
-  },[]);
-  return[r,v];
-}
-function useWide(bp=960){
-  const[w,sw]=useState(()=>window.innerWidth>=bp);
-  useEffect(()=>{
-    const fn=()=>sw(window.innerWidth>=bp);
-    window.addEventListener("resize",fn,{passive:true});
-    return()=>window.removeEventListener("resize",fn);
-  },[bp]);
-  return w;
+function generateRef(typeCode) {
+  const yr = new Date().getFullYear();
+  const seq = String(Math.floor(Math.random() * 900) + 100).padStart(3, "0");
+  return `${typeCode}-${yr}-${seq}`;
 }
 
-function getMorphBlocks(s){return s?Array.from(s.querySelectorAll("[data-morph]")).slice(0,12):[]}
-function clearMorph(el){el.style.transition=el.style.transform=el.style.opacity=el.style.willChange="";}
+// ─── SUB-COMPONENTS ───────────────────────────────────────────────────────────
 
-// ── SECTION LABEL ─────────────────────────────────────────────────────────────
-function SectionLabel({num,label}){
-  return(
-    <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:28}}>
-      <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:GOLD,fontWeight:700,letterSpacing:"1.5px"}}>{num}</span>
-      <span style={{width:20,height:1,background:GOLD,opacity:.6,display:"inline-block"}}/>
-      <span style={{fontFamily:"'Inter',sans-serif",fontSize:11,color:INK_M,fontWeight:600,letterSpacing:"2.5px",textTransform:"uppercase"}}>{label}</span>
-    </div>
-  );
-}
-
-// ── SEV PILL ──────────────────────────────────────────────────────────────────
-function SevPill({sev}){
-  const map={
-    "Critical":{bg:"rgba(176,57,45,.07)",bd:"rgba(176,57,45,.2)",tx:DOWN},
-    "High":    {bg:GOLD_DIM,            bd:"rgba(168,121,40,.2)",tx:GOLD},
-    "Medium":  {bg:"rgba(154,107,24,.06)",bd:"rgba(154,107,24,.18)",tx:AMBER},
-  };
-  const s=map[sev]||map["Medium"];
-  return(
-    <span style={{fontSize:10.5,fontWeight:600,padding:"3px 10px",borderRadius:2,
-      border:`1px solid ${s.bd}`,background:s.bg,color:s.tx,whiteSpace:"nowrap"}}>
-      {sev}
-    </span>
-  );
-}
-
-// ── BOOT SCREEN ───────────────────────────────────────────────────────────────
-function Boot({onDone}){
-  const[leaving,setLeaving]=useState(false),[pct,setPct]=useState(0);
-  const finRef=useRef(false),rafRef=useRef(0),tgtRef=useRef(0);
-  const finish=useCallback(()=>{
-    if(finRef.current)return;finRef.current=true;
-    tgtRef.current=100;setLeaving(true);setTimeout(onDone,620);
-  },[onDone]);
-  useEffect(()=>{
-    const start=Date.now();
-    const tick=()=>{
-      const elapsed=Date.now()-start;
-      if(!finRef.current){
-        const natural=Math.min(elapsed/2200,1)*92;
-        tgtRef.current=natural;
-      }
-      rafRef.current=requestAnimationFrame(tick);
-    };
-    rafRef.current=requestAnimationFrame(tick);
-    return()=>cancelAnimationFrame(rafRef.current);
-  },[]);
-  useEffect(()=>{
-    const lerp=()=>{
-      setPct(p=>{const t=tgtRef.current,np=p+(t-p)*.1;return Math.abs(t-np)<.3?t:np;});
-      rafRef.current=requestAnimationFrame(lerp);
-    };
-    const id=requestAnimationFrame(lerp);return()=>cancelAnimationFrame(id);
-  },[]);
-  useEffect(()=>{
-    const t=setTimeout(finish,2500);
-    return()=>clearTimeout(t);
-  },[finish]);
-  useEffect(()=>{
-    const k=()=>finish();
-    window.addEventListener("keydown",k);return()=>window.removeEventListener("keydown",k);
-  },[finish]);
-  const delay=(n)=>({animation:`bootReveal .5s ease ${n*0.1}s both`});
-  return(
-    <div onClick={finish} style={{position:"fixed",inset:0,zIndex:9000,background:SURFACE,
-      display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
-      cursor:"pointer",gap:0,
-      animation:leaving?"bootFadeOut .6s ease forwards":"none"}}>
-      <div style={{...delay(0),display:"flex",flexDirection:"column",alignItems:"center",gap:20}}>
-        <div style={{width:72,height:72,borderRadius:"50%",background:NAVY,
-          boxShadow:"0 8px 32px rgba(27,51,86,.2)",
-          display:"flex",alignItems:"center",justifyContent:"center"}}>
-          <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:36,color:"#fff",fontWeight:700,lineHeight:1}}>M</span>
-        </div>
-        <div style={{textAlign:"center"}}>
-          <div style={{fontFamily:"'Inter',sans-serif",fontSize:13,fontWeight:700,letterSpacing:"4px",color:INK,textTransform:"uppercase",marginBottom:6}}>MERIDIAN RE ADVISORY</div>
-          <div style={{fontFamily:"'Inter',sans-serif",fontSize:11,color:INK_M}}>Consultancy Platform · MAS-GUARD-001 v1.0</div>
-        </div>
-        <div style={{width:"100%",maxWidth:280,height:2,background:BORDER_L,borderRadius:1,overflow:"hidden",marginTop:4}}>
-          <div style={{height:"100%",background:GOLD,width:`${pct}%`,transition:"width .12s ease",borderRadius:1}}/>
-        </div>
-        <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:INK_F,letterSpacing:"0.5px"}}>Click or press any key to continue</div>
-      </div>
-    </div>
-  );
-}
-
-// ── NAV ───────────────────────────────────────────────────────────────────────
-function Nav({page,onBack}){
-  const pathLabel=page==="dashboard"?"/ report-library":page==="checker"?"/ guardrail-checker":page==="risk"?"/ risk-scorer":"";
-  return(
-    <nav style={{position:"fixed",top:0,left:0,right:0,height:60,zIndex:300,
-      background:"rgba(250,249,246,.96)",backdropFilter:"blur(12px)",
-      WebkitBackdropFilter:"blur(12px)",borderBottom:`1px solid ${BORDER}`,
-      display:"flex",alignItems:"center",justifyContent:"space-between",
-      padding:"0 28px",boxSizing:"border-box"}}>
-      <div style={{display:"flex",alignItems:"center",gap:12}}>
-        <div style={{width:32,height:32,borderRadius:"50%",background:NAVY,
-          display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-          <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:17,color:"#fff",fontWeight:700,lineHeight:1}}>M</span>
+function TopNav({ activeUser = "YA" }) {
+  return (
+    <header style={{
+      background: "#0a0908",
+      height: 52,
+      display: "flex",
+      alignItems: "center",
+      padding: "0 24px",
+      gap: 16,
+      borderBottom: "1px solid rgba(184,150,46,0.3)",
+      flexShrink: 0,
+      position: "sticky",
+      top: 0,
+      zIndex: 100,
+    }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <div style={{
+          width: 28, height: 28,
+          border: "1.5px solid #B8962E",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          transform: "rotate(45deg)",
+        }}>
+          <div style={{ width: 10, height: 10, background: "#B8962E" }} />
         </div>
         <div>
-          <div style={{fontFamily:"'Inter',sans-serif",fontSize:12,color:INK,lineHeight:1.2}}>
-            <span style={{fontWeight:700}}>MERIDIAN</span>
-            <span style={{color:INK_M,fontWeight:400}}> RE ADVISORY</span>
-          </div>
-          {pathLabel&&<div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9,color:INK_M,lineHeight:1,marginTop:2}}>{pathLabel}</div>}
+          <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 16, fontWeight: 600, color: "#E8E0D0", letterSpacing: "0.06em" }}>Meridian</div>
+          <div style={{ fontSize: 9, color: "#B8962E", letterSpacing: "0.14em", textTransform: "uppercase", marginTop: -1 }}>RE Advisory Platform</div>
         </div>
       </div>
-      {page!=="landing"&&(
-        <button onClick={onBack} className="btn-outline"
-          style={{fontFamily:"'Inter',sans-serif",fontSize:12,color:INK_S,
-            border:`1px solid ${BORDER}`,background:"transparent",
-            padding:"7px 14px",borderRadius:2,cursor:"pointer",letterSpacing:".3px"}}>
-          {page==="dashboard"?"← Home":"← Library"}
-        </button>
-      )}
+      <div style={{ flex: 1 }} />
+      <div style={{
+        background: "rgba(184,150,46,0.1)",
+        border: "1px solid rgba(184,150,46,0.25)",
+        color: "#D4B96A",
+        fontSize: 11,
+        padding: "3px 12px",
+        borderRadius: 20,
+        letterSpacing: "0.06em",
+        display: "flex", alignItems: "center", gap: 6,
+      }}>
+        <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#4ade80", display: "inline-block" }} />
+        MAS-GUARD-001 · Active
+      </div>
+      <div style={{
+        width: 32, height: 32, borderRadius: "50%",
+        background: "rgba(184,150,46,0.15)",
+        border: "1px solid #B8962E",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        fontSize: 11, fontWeight: 600, color: "#B8962E",
+        marginLeft: 8, cursor: "pointer",
+        fontFamily: "'DM Sans', sans-serif",
+      }}>
+        {activeUser}
+      </div>
+    </header>
+  );
+}
+
+function Sidebar({ active, onNav }) {
+  const navItems = [
+    { id: "dashboard",   icon: "⬡", label: "Dashboard" },
+    { id: "builder",     icon: "◈", label: "Report Builder" },
+    { id: "engagements", icon: "◉", label: "Engagements", badge: 4 },
+    { id: "guardrails",  icon: "◆", label: "Guardrail Library", badge: 22 },
+    { id: "skill",       icon: "◎", label: "Skill Config" },
+  ];
+  const dividerItems = [
+    { id: "datasources", icon: "◫", label: "Data Sources" },
+    { id: "team",        icon: "○", label: "Team" },
+  ];
+
+  const Item = ({ item }) => {
+    const isActive = active === item.id;
+    return (
+      <div
+        onClick={() => onNav(item.id)}
+        style={{
+          display: "flex", alignItems: "center", gap: 10,
+          padding: "8px 12px",
+          borderRadius: 8,
+          cursor: "pointer",
+          fontSize: 13,
+          color: isActive ? "#92701A" : "#6b7280",
+          background: isActive ? "rgba(184,150,46,0.08)" : "transparent",
+          borderLeft: isActive ? "2px solid #B8962E" : "2px solid transparent",
+          marginBottom: 2,
+          transition: "all 0.15s",
+          fontFamily: "'DM Sans', sans-serif",
+          fontWeight: isActive ? 500 : 400,
+        }}
+      >
+        <span style={{ fontSize: 12, width: 16, textAlign: "center", opacity: isActive ? 1 : 0.6 }}>{item.icon}</span>
+        <span style={{ flex: 1 }}>{item.label}</span>
+        {item.badge && (
+          <span style={{
+            fontSize: 10, padding: "1px 7px",
+            borderRadius: 10, background: "#f3f4f6",
+            color: "#6b7280", border: "0.5px solid #e5e7eb",
+          }}>{item.badge}</span>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <nav style={{
+      width: 220,
+      background: "#fff",
+      borderRight: "0.5px solid #e5e7eb",
+      display: "flex", flexDirection: "column",
+      flexShrink: 0, overflowY: "auto",
+      padding: "16px 12px",
+    }}>
+      <div style={{ fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", color: "#9ca3af", fontWeight: 500, marginBottom: 8, padding: "0 4px", fontFamily: "'DM Sans', sans-serif" }}>Workspace</div>
+      {navItems.map(i => <Item key={i.id} item={i} />)}
+      <div style={{ height: 0.5, background: "#e5e7eb", margin: "12px 4px" }} />
+      <div style={{ fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", color: "#9ca3af", fontWeight: 500, marginBottom: 8, padding: "0 4px", fontFamily: "'DM Sans', sans-serif" }}>Admin</div>
+      {dividerItems.map(i => <Item key={i.id} item={i} />)}
+      <div style={{ flex: 1 }} />
+      <div style={{
+        padding: "10px 12px", borderRadius: 8,
+        background: "rgba(184,150,46,0.06)",
+        border: "0.5px solid rgba(184,150,46,0.2)",
+        marginTop: 16,
+      }}>
+        <div style={{ fontSize: 11, color: "#B8962E", fontWeight: 500, marginBottom: 4, fontFamily: "'DM Sans', sans-serif" }}>v1.0 · MAS-GUARD-001</div>
+        <div style={{ fontSize: 11, color: "#9ca3af", fontFamily: "'DM Sans', sans-serif" }}>22 guardrails active · Malaysia jurisdiction</div>
+      </div>
     </nav>
   );
 }
 
-// ── TOAST ─────────────────────────────────────────────────────────────────────
-function Toast({msg,onClose}){
-  return(
-    <div style={{position:"fixed",bottom:28,right:28,zIndex:9999,
-      background:SURFACE,border:`1px solid ${BORDER}`,padding:"16px 20px",
-      boxShadow:"0 8px 40px rgba(26,33,48,.15)",borderRadius:3,
-      animation:"toastIn .3s ease both",minWidth:260}}>
-      <div style={{display:"flex",alignItems:"flex-start",gap:10}}>
-        <div style={{width:6,height:6,borderRadius:"50%",background:UP,marginTop:4,flexShrink:0}}/>
-        <div style={{flex:1}}>
-          <div style={{fontFamily:"'Inter',sans-serif",fontSize:11,fontWeight:700,color:INK,letterSpacing:"1px",textTransform:"uppercase",marginBottom:4}}>Template Ready</div>
-          <div style={{fontFamily:"'Inter',sans-serif",fontSize:13,color:INK_S}}>{msg}</div>
-        </div>
-        <button onClick={onClose} style={{background:"none",border:"none",color:INK_M,cursor:"pointer",fontSize:16,lineHeight:1,padding:0,marginTop:-2}}>×</button>
-      </div>
+function Card({ children, style = {} }) {
+  return (
+    <div style={{
+      background: "#fff",
+      border: "0.5px solid #e5e7eb",
+      borderRadius: 12,
+      overflow: "hidden",
+      ...style,
+    }}>
+      {children}
     </div>
   );
 }
 
-// ── HOLD BAR ──────────────────────────────────────────────────────────────────
-function HoldBar({onComplete,label="Access the report library",width=520,inverted=false}){
-  const[pct,setPct]=useState(0),[holding,setHolding]=useState(false);
-  const rafRef=useRef(0),startRef=useRef(0),holdDur=2000;
-  const startHold=useCallback(()=>{
-    setHolding(true);startRef.current=Date.now();
-    const tick=()=>{
-      const elapsed=Date.now()-startRef.current;
-      const p=Math.min(elapsed/holdDur*100,100);
-      setPct(p);
-      if(p<100)rafRef.current=requestAnimationFrame(tick);
-      else onComplete();
-    };
-    rafRef.current=requestAnimationFrame(tick);
-  },[onComplete]);
-  const stopHold=useCallback(()=>{
-    setHolding(false);cancelAnimationFrame(rafRef.current);setPct(0);
-  },[]);
-  useEffect(()=>()=>cancelAnimationFrame(rafRef.current),[]);
-
-  const borderColor=inverted?"rgba(255,255,255,.35)":NAVY;
-  const fillColor=inverted?SURFACE:NAVY;
-  const textColor=inverted?SURFACE:INK;
-  const textColorFill=inverted?NAVY:SURFACE;
-
-  return(
-    <div onMouseDown={startHold} onMouseUp={stopHold} onMouseLeave={stopHold}
-      onTouchStart={startHold} onTouchEnd={stopHold}
-      style={{position:"relative",width:"100%",maxWidth:width,height:48,
-        background:inverted?"rgba(255,255,255,.08)":SURFACE,
-        border:`1.5px solid ${borderColor}`,borderRadius:2,cursor:"pointer",
-        overflow:"hidden",userSelect:"none",
-        boxShadow:holding?"0 4px 20px rgba(27,51,86,.15)":"none",
-        transition:"box-shadow .2s"}}>
-      <div style={{position:"absolute",top:0,left:0,height:"100%",width:`${pct}%`,
-        background:fillColor,transition:holding?"none":"width .15s ease",zIndex:1}}/>
-      <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",
-        justifyContent:"space-between",padding:"0 18px",zIndex:2}}>
-        <span style={{fontFamily:"'Inter',sans-serif",fontSize:12,fontWeight:600,
-          letterSpacing:"2px",textTransform:"uppercase",color:textColor}}>{label}</span>
-        <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:textColor,opacity:.6}}>
-          {pct>1?`${Math.round(pct)}%`:"PRESS & HOLD →"}
-        </span>
-      </div>
-      {pct>0&&(
-        <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",
-          justifyContent:"space-between",padding:"0 18px",zIndex:3,
-          clipPath:`inset(0 ${100-pct}% 0 0)`}}>
-          <span style={{fontFamily:"'Inter',sans-serif",fontSize:12,fontWeight:600,
-            letterSpacing:"2px",textTransform:"uppercase",color:textColorFill}}>{label}</span>
-          <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:textColorFill}}>
-            {pct>1?`${Math.round(pct)}%`:"PRESS & HOLD →"}
-          </span>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── HERO SECTION (S00) ────────────────────────────────────────────────────────
-function HeroSection({onEnter}){
-  const wide=useWide(900);
-  const heroGuardrails=GUARDRAILS.slice(0,7);
-  return(
-    <section id="lp-s0" style={{background:BG,borderBottom:`1px solid ${BORDER}`,
-      display:"flex",alignItems:"center",justifyContent:"center",position:"relative"}}>
-      <div style={{maxWidth:1400,width:"100%",margin:"0 auto",
-        padding:`0 clamp(24px,4vw,52px)`,
-        display:"grid",gridTemplateColumns:wide?"1fr 1fr":"1fr",gap:wide?60:40,
-        alignItems:"center"}}>
-        <div style={{display:"flex",flexDirection:"column",gap:0}}>
-          <div data-morph style={{display:"flex",alignItems:"center",gap:8,marginBottom:20}}>
-            <div style={{width:6,height:6,borderRadius:"50%",background:UP,animation:"dotPulse 2s ease-in-out infinite"}}/>
-            <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,color:GOLD,fontWeight:600,letterSpacing:"0.5px"}}>MER.ADV.MY · MAS-GUARD-001</span>
-          </div>
-          <h1 data-morph style={{fontFamily:"'Cormorant Garamond',serif",
-            fontSize:"clamp(44px,5.2vw,72px)",fontWeight:700,lineHeight:.96,
-            color:INK,margin:"0 0 24px",letterSpacing:"-1px"}}>
-            Real Estate<br/>Advisory,<br/><span style={{color:NAVY}}>institutionalised</span>
-            <span style={{display:"inline-block",width:10,height:10,borderRadius:"50%",
-              background:GOLD,marginLeft:6,verticalAlign:"middle",transform:"translateY(-2px)"}}/>
-          </h1>
-          <p data-morph style={{fontFamily:"'Inter',sans-serif",fontSize:15,color:INK_S,
-            lineHeight:1.7,maxWidth:480,margin:"0 0 32px"}}>
-            A structured consultancy framework for Malaysian real estate advisory. Seven report families, 22 guardrails, five compliance domains — built for institutional-grade outputs.
-          </p>
-          <div data-morph style={{marginBottom:10}}>
-            <HoldBar onComplete={onEnter} label="Access the platform" width={460}/>
-          </div>
-          <p data-morph style={{fontFamily:"'Inter',sans-serif",fontSize:11,color:INK_M,margin:"8px 0 32px"}}>Press and hold to enter the platform</p>
-          <div data-morph style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:0,
-            borderTop:`1px solid ${BORDER}`,paddingTop:24}}>
-            {[["07","Report Families"],["22","Guardrails"],["05","Domains"],["MY","Region"]].map(([v,l],i)=>(
-              <div key={i} style={{padding:"0 16px 0 0",borderRight:i<3?`1px solid ${BORDER}`:"none",
-                paddingRight:i<3?16:0,paddingLeft:i>0?16:0}}>
-                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:28,fontWeight:700,color:INK,lineHeight:1}}>{v}</div>
-                <div style={{fontFamily:"'Inter',sans-serif",fontSize:10,color:INK_M,textTransform:"uppercase",letterSpacing:"1.5px",marginTop:4}}>{l}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-        {wide&&(
-          <div data-morph>
-            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
-              <span style={{fontFamily:"'Inter',sans-serif",fontSize:10,color:INK_M}}>Guardrail Matrix — Excerpt</span>
-              <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9.5,color:GOLD}}>MAS-GUARD-001</span>
-            </div>
-            <div style={{background:SURFACE,border:`1px solid ${BORDER}`,borderRadius:3,
-              boxShadow:"0 4px 20px rgba(26,33,48,.06)",overflow:"hidden"}}>
-              {heroGuardrails.map((g,i)=>(
-                <div key={g.code} style={{display:"flex",alignItems:"center",gap:12,
-                  padding:"10px 16px",
-                  background:i%2===0?"transparent":SURFACE_S,
-                  borderBottom:i<heroGuardrails.length-1?`1px solid ${BORDER_L}`:"none"}}>
-                  <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9.5,color:NAVY,minWidth:96,flexShrink:0}}>{g.code}</span>
-                  <span style={{fontFamily:"'Inter',sans-serif",fontSize:12.5,color:INK_S,flex:1}}>{g.title}</span>
-                  <SevPill sev={g.sev}/>
-                </div>
-              ))}
-              <div style={{padding:"12px 16px",borderTop:`1px solid ${BORDER_L}`,textAlign:"center"}}>
-                <span style={{fontFamily:"'Inter',sans-serif",fontSize:11,color:GOLD,fontWeight:600}}>+ 15 more guardrails · Press SPACE to continue</span>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-    </section>
-  );
-}
-
-// ── REPORT SUITE SECTION (S01) ────────────────────────────────────────────────
-function ReportSuiteSection(){
-  return(
-    <section style={{background:SURFACE_S,borderBottom:`1px solid ${BORDER}`,display:"flex",
-      alignItems:"flex-start",justifyContent:"center",width:"100%",boxSizing:"border-box"}}>
-      <div style={{maxWidth:1400,width:"100%",padding:"0 40px",boxSizing:"border-box"}}>
-        <SectionLabel num="S01" label="The Seven Report Families"/>
-        <h2 data-morph style={{fontFamily:"'Cormorant Garamond',serif",fontSize:"clamp(30px,4vw,50px)",
-          fontWeight:700,color:INK,margin:"0 0 12px",lineHeight:1.1}}>
-          The Seven Report Families
-        </h2>
-        <p data-morph style={{fontFamily:"'Inter',sans-serif",fontSize:13.5,color:INK_S,margin:"0 0 28px",maxWidth:620,lineHeight:1.6}}>
-          Every engagement is classified into one of seven MER report types. Each type carries a defined section structure, scope boundary, and guardrail checklist.
-        </p>
-        <div data-morph style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))",gap:14}}>
-          {MER_TYPES.map((t)=>(
-            <div key={t.code} className="lp-card"
-              style={{background:SURFACE,border:`1px solid ${BORDER}`,borderRadius:3,padding:"18px 22px"}}>
-              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
-                <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10.5,color:NAVY,
-                  background:NAVY_DIM,border:"1px solid rgba(27,51,86,.15)",
-                  padding:"3px 8px",borderRadius:2}}>{t.code}</span>
-                <span style={{fontFamily:"'Inter',sans-serif",fontSize:10,color:INK_M,
-                  border:`1px solid ${BORDER}`,padding:"3px 8px",borderRadius:2}}>{t.tag}</span>
-              </div>
-              <div className="lp-num" style={{fontFamily:"'Cormorant Garamond',serif",fontSize:19,
-                fontWeight:700,color:INK,margin:"8px 0 4px",transition:"color .2s"}}>{t.type}</div>
-              <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9.5,color:INK_M,marginBottom:10}}>{t.pages} pages</div>
-              <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
-                {[1,2,3,4,5,6,7,8].map(n=>{
-                  const inc=t.sections.includes(n);
-                  return(
-                    <div key={n} style={{width:24,height:24,display:"flex",alignItems:"center",
-                      justifyContent:"center",fontSize:9.5,fontWeight:600,borderRadius:2,
-                      border:`1px solid ${inc?"rgba(168,121,40,.3)":BORDER_L}`,
-                      background:inc?GOLD_DIM:"transparent",
-                      color:inc?GOLD_B:INK_F}}>§{n}</div>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-// ── GUARDRAIL SECTION (S02) ───────────────────────────────────────────────────
-function GuardrailSection(){
-  const domainCounts={};
-  GUARDRAILS.forEach(g=>{domainCounts[g.domain]=(domainCounts[g.domain]||0)+1;});
-  return(
-    <section style={{background:BG,borderBottom:`1px solid ${BORDER}`,display:"flex",
-      alignItems:"flex-start",justifyContent:"center",width:"100%",boxSizing:"border-box"}}>
-      <div style={{maxWidth:1400,width:"100%",padding:"0 40px",boxSizing:"border-box"}}>
-        <SectionLabel num="S02" label="Guardrail Matrix"/>
-        <h2 data-morph style={{fontFamily:"'Cormorant Garamond',serif",fontSize:"clamp(30px,4vw,50px)",
-          fontWeight:700,color:INK,margin:"0 0 12px",lineHeight:1.1}}>
-          22 Guardrails Across 5 Domains
-        </h2>
-        <p data-morph style={{fontFamily:"'Inter',sans-serif",fontSize:13.5,color:INK_S,margin:"0 0 20px",maxWidth:620,lineHeight:1.6}}>
-          Each advisory engagement is assessed against a structured compliance matrix. Guardrails are categorised by domain and severity to ensure consistent, defensible outputs.
-        </p>
-        <div data-morph style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:24}}>
-          {Object.entries(DC).map(([domain,c])=>(
-            <span key={domain} style={{fontFamily:"'Inter',sans-serif",fontSize:11,fontWeight:600,
-              padding:"5px 12px",borderRadius:2,background:c.bg,border:`1px solid ${c.bd}`,color:c.tx}}>
-              {domain} ({domainCounts[domain]||0})
-            </span>
-          ))}
-        </div>
-        <div data-morph style={{background:SURFACE,border:`1px solid ${BORDER}`,borderRadius:3,
-          boxShadow:"0 2px 16px rgba(26,33,48,.05)",overflow:"hidden"}}>
-          {GUARDRAILS.map((g,i)=>{
-            const dc=DC[g.domain]||{};
-            return(
-              <div key={g.code} className="gr-row"
-                style={{display:"flex",alignItems:"center",gap:14,padding:"11px 18px",
-                  background:i%2===0?"transparent":SURFACE_S,
-                  borderBottom:i<GUARDRAILS.length-1?`1px solid ${BORDER_L}`:"none"}}>
-                <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9.5,color:NAVY,minWidth:100,flexShrink:0}}>{g.code}</span>
-                <span style={{fontFamily:"'Inter',sans-serif",fontSize:11,fontWeight:600,
-                  padding:"3px 9px",borderRadius:2,background:dc.bg,border:`1px solid ${dc.bd}`,color:dc.tx,
-                  whiteSpace:"nowrap",minWidth:80,textAlign:"center"}}>{g.domain}</span>
-                <span style={{fontFamily:"'Inter',sans-serif",fontSize:13,color:INK_S,flex:1}}>{g.title}</span>
-                <SevPill sev={g.sev}/>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-// ── METHODOLOGY SECTION (S03) ─────────────────────────────────────────────────
-function MethodologySection(){
-  const aiTable=[
-    {task:"Market Data Aggregation",     ai:true, hr:true,  hl:false},
-    {task:"Comparable Transaction Search",ai:true,hr:true,  hl:false},
-    {task:"Financial Model Construction", ai:false,hr:true,  hl:true},
-    {task:"HBU Test Conclusions",         ai:false,hr:false, hl:true},
-    {task:"Risk Register Scoring",        ai:false,hr:true,  hl:true},
-    {task:"Executive Summary Drafting",   ai:true, hr:true,  hl:false},
-    {task:"Regulatory Compliance Review", ai:false,hr:false, hl:true},
-    {task:"Final Sign-Off",              ai:false,hr:false, hl:true},
-  ];
-  return(
-    <section style={{background:SURFACE_S,borderBottom:`1px solid ${BORDER}`,display:"flex",
-      alignItems:"flex-start",justifyContent:"center",width:"100%",boxSizing:"border-box"}}>
-      <div style={{maxWidth:1400,width:"100%",padding:"0 40px",boxSizing:"border-box"}}>
-        <SectionLabel num="S03" label="Report Structure"/>
-        <h2 data-morph style={{fontFamily:"'Cormorant Garamond',serif",fontSize:"clamp(30px,4vw,50px)",
-          fontWeight:700,color:INK,margin:"0 0 12px",lineHeight:1.1}}>
-          Eight-Section Report Framework
-        </h2>
-        <p data-morph style={{fontFamily:"'Inter',sans-serif",fontSize:13.5,color:INK_S,margin:"0 0 28px",maxWidth:620,lineHeight:1.6}}>
-          All MER advisory reports follow a standardised eight-section structure. Conditional sections are included based on report type classification.
-        </p>
-        <div data-morph style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(340px,1fr))",gap:12,marginBottom:32}}>
-          {REPORT_SECTIONS.map(s=>(
-            <div key={s.n} style={{background:SURFACE,border:`1px solid ${BORDER}`,borderRadius:3,
-              padding:"16px 20px",boxShadow:"0 2px 12px rgba(26,33,48,.05)",
-              display:"flex",gap:14,alignItems:"flex-start"}}>
-              <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:22,color:GOLD,
-                opacity:.35,fontWeight:700,lineHeight:1,flexShrink:0,marginTop:2}}>§{s.n}</span>
-              <div>
-                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:5}}>
-                  <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:17,fontWeight:700,color:INK}}>{s.title}</span>
-                  {s.cond&&<span style={{fontFamily:"'Inter',sans-serif",fontSize:9,fontWeight:600,
-                    color:AMBER,background:"rgba(154,107,24,.06)",border:`1px solid rgba(154,107,24,.2)`,
-                    padding:"2px 6px",borderRadius:2,letterSpacing:"0.5px"}}>COND</span>}
-                </div>
-                <p style={{fontFamily:"'Inter',sans-serif",fontSize:12,color:INK_M,margin:0,lineHeight:1.6}}>{s.desc}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-        <div data-morph>
-          <div style={{fontFamily:"'Inter',sans-serif",fontSize:11,color:INK_M,textTransform:"uppercase",
-            letterSpacing:"2px",marginBottom:12}}>AI Role Boundaries</div>
-          <div style={{background:SURFACE,border:`1px solid ${BORDER}`,borderRadius:3,
-            boxShadow:"0 2px 12px rgba(26,33,48,.05)",overflow:"hidden"}}>
-            {aiTable.map((row,i)=>(
-              <div key={i} style={{display:"grid",gridTemplateColumns:"1fr repeat(3,90px)",
-                padding:"10px 18px",borderBottom:i<aiTable.length-1?`1px solid ${BORDER_L}`:"none",
-                background:i%2===0?"transparent":SURFACE_S,alignItems:"center",gap:10}}>
-                <span style={{fontFamily:"'Inter',sans-serif",fontSize:12.5,color:INK_S}}>{row.task}</span>
-                <span style={{textAlign:"center",fontSize:13}}>{row.ai?"✓":"—"}</span>
-                <span style={{textAlign:"center",fontSize:13}}>{row.hr?"✓":"—"}</span>
-                <span style={{textAlign:"center",fontSize:13}}>{row.hl?"✓":"—"}</span>
-              </div>
-            ))}
-            <div style={{display:"grid",gridTemplateColumns:"1fr repeat(3,90px)",
-              padding:"8px 18px",borderTop:`1px solid ${BORDER}`,background:SURFACE_S,gap:10}}>
-              <span/>
-              {["AI may lead","Human review","Human leads"].map(l=>(
-                <span key={l} style={{fontFamily:"'Inter',sans-serif",fontSize:9,color:INK_M,
-                  textTransform:"uppercase",letterSpacing:"0.5px",textAlign:"center"}}>{l}</span>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-// ── DEPLOY SECTION (S04) ──────────────────────────────────────────────────────
-function DeploySection({onEnter}){
-  const stats=[
-    {v:"07",l:"Report Families"},
-    {v:"22",l:"Guardrails"},
-    {v:"05",l:"Domains"},
-    {v:"12",l:"Compliance Checks"},
-    {v:"MY",l:"Jurisdiction"},
-  ];
-  return(
-    <section style={{background:NAVY_SECTION,display:"flex",
-      alignItems:"flex-start",justifyContent:"center",width:"100%",boxSizing:"border-box"}}>
-      <div style={{maxWidth:1400,width:"100%",padding:"0 40px",boxSizing:"border-box"}}>
-        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:28}}>
-          <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10,color:GOLD,fontWeight:700,letterSpacing:"1.5px"}}>S04</span>
-          <span style={{width:20,height:1,background:GOLD,opacity:.6,display:"inline-block"}}/>
-          <span style={{fontFamily:"'Inter',sans-serif",fontSize:11,color:"rgba(255,255,255,.55)",fontWeight:600,letterSpacing:"2.5px",textTransform:"uppercase"}}>DEPLOY</span>
-        </div>
-        <h2 data-morph style={{fontFamily:"'Cormorant Garamond',serif",
-          fontSize:"clamp(40px,5vw,68px)",fontWeight:700,color:"#fff",
-          margin:"0 0 20px",lineHeight:1.05,letterSpacing:"-1px"}}>
-          The advisory library<br/>is ready.
-        </h2>
-        <p data-morph style={{fontFamily:"'Inter',sans-serif",fontSize:15,
-          color:"rgba(255,255,255,.7)",margin:"0 0 36px",maxWidth:520,lineHeight:1.7}}>
-          Access the complete report template library, guardrail compliance tools, and risk scoring engine. Structured for institutional-grade consultancy engagements.
-        </p>
-        <div data-morph style={{marginBottom:8}}>
-          <HoldBar onComplete={onEnter} label="Enter the library" width={460} inverted/>
-        </div>
-        <p data-morph style={{fontFamily:"'Inter',sans-serif",fontSize:11,color:"rgba(255,255,255,.4)",margin:"8px 0 40px"}}>Press and hold to access the platform</p>
-        <div data-morph style={{display:"flex",gap:12,flexWrap:"wrap"}}>
-          {stats.map(s=>(
-            <div key={s.l} style={{background:"rgba(255,255,255,.08)",border:"1px solid rgba(255,255,255,.15)",
-              borderRadius:3,padding:"18px 24px",minWidth:100}}>
-              <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:32,fontWeight:700,
-                color:GOLD_B,lineHeight:1,marginBottom:6}}>{s.v}</div>
-              <div style={{fontFamily:"'Inter',sans-serif",fontSize:10,color:"rgba(255,255,255,.55)",
-                textTransform:"uppercase",letterSpacing:"1.5px"}}>{s.l}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-// ── LANDING PAGE ──────────────────────────────────────────────────────────────
-function LandingPage({onEnter,scrollRef,active}){
-  const[sIdx,setSIdx]=useState(0);
-  const morphing=useRef(false);
-  const totalSections=LP_SECTIONS.length;
-
-  const morphTo=useCallback((newIdx)=>{
-    if(morphing.current||!scrollRef.current)return;
-    const container=scrollRef.current;
-    const allSections=Array.from(container.querySelectorAll(".lp-fit > section"));
-    if(!allSections[newIdx])return;
-    const oldSection=allSections[sIdx];
-    const newSection=allSections[newIdx];
-    const dir=newIdx>sIdx?1:-1;
-    const oldBlocks=getMorphBlocks(oldSection);
-    const newBlocks=getMorphBlocks(newSection);
-    morphing.current=true;
-    // Scatter out current
-    oldBlocks.forEach((el,i)=>{
-      el.style.willChange="transform,opacity";
-      el.style.transition=`transform ${SCATTER_DUR}ms ease,opacity ${SCATTER_DUR}ms ease`;
-      el.style.transitionDelay=`${i*18}ms`;
-      el.style.opacity="0";
-      el.style.transform=`translateY(${dir>0?-10:10}px)`;
-    });
-    setTimeout(()=>{
-      if(newSection.scrollIntoView)newSection.scrollIntoView({behavior:"smooth",block:"start"});
-      setSIdx(newIdx);
-      oldBlocks.forEach(el=>clearMorph(el));
-      newBlocks.forEach(el=>{
-        el.style.opacity="0";
-        el.style.transform=`translateY(${dir<0?-10:10}px)`;
-        el.style.willChange="transform,opacity";
-      });
-      setTimeout(()=>{
-        newBlocks.forEach((el,i)=>{
-          el.style.transition=`transform ${ASSEMBLE_DUR}ms ease,opacity ${ASSEMBLE_DUR}ms ease`;
-          el.style.transitionDelay=`${i*28}ms`;
-          el.style.opacity="1";
-          el.style.transform="";
-        });
-        setTimeout(()=>{
-          newBlocks.forEach(el=>clearMorph(el));
-          morphing.current=false;
-        },ASSEMBLE_DUR+newBlocks.length*28+100);
-      },SCROLL_DUR);
-    },SCATTER_DUR+oldBlocks.length*18+40);
-  },[sIdx,scrollRef]);
-
-  useEffect(()=>{
-    if(!active)return;
-    const handler=(e)=>{
-      if(e.target.tagName==="INPUT"||e.target.tagName==="TEXTAREA")return;
-      if(e.code==="Space"){
-        e.preventDefault();
-        if(e.shiftKey)morphTo(Math.max(0,sIdx-1));
-        else morphTo(Math.min(totalSections-1,sIdx+1));
-      }
-    };
-    window.addEventListener("keydown",handler);
-    return()=>window.removeEventListener("keydown",handler);
-  },[active,sIdx,morphTo,totalSections]);
-
-  return(
-    <div className="lp-fit" ref={scrollRef}
-      style={{position:"relative",overflowY:"scroll",scrollSnapType:"y mandatory"}}>
-      <HeroSection onEnter={onEnter}/>
-      <ReportSuiteSection/>
-      <GuardrailSection/>
-      <MethodologySection/>
-      <DeploySection onEnter={onEnter}/>
-      {active&&(
-        <div style={{position:"fixed",bottom:24,left:"50%",zIndex:200,
-          animation:"hintFloat 2.8s ease-in-out infinite",pointerEvents:"none"}}>
-          <div style={{background:SURFACE,border:`1px solid ${BORDER}`,
-            padding:"8px 16px",borderRadius:20,
-            boxShadow:"0 4px 16px rgba(26,33,48,.09)"}}>
-            <span style={{fontFamily:"'Inter',sans-serif",fontSize:11,color:INK_S,letterSpacing:"0.2px"}}>
-              SPACE — next section · ⇧ SPACE — previous
-            </span>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── REPORT CARD ───────────────────────────────────────────────────────────────
-function ReportCard({t,onDL,downloading,idx}){
-  const[ref,vis]=useInView(.08);
-  return(
-    <div ref={ref} className="mer-card"
-      style={{background:SURFACE,border:`1px solid ${BORDER}`,borderRadius:4,
-        overflow:"hidden",opacity:vis?1:0,
-        transform:vis?"translateY(0)":"translateY(18px)",
-        transition:`opacity .5s ease ${idx*60}ms, transform .5s ease ${idx*60}ms, box-shadow .25s, transform .25s`}}>
-      <div style={{height:2,background:GOLD}}/>
-      <div style={{background:NAVY_DIM,padding:"18px 24px 14px",borderBottom:`1px solid ${BORDER}`}}>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
-          <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:10.5,color:NAVY,
-            background:NAVY_DIM,border:"1px solid rgba(27,51,86,.15)",padding:"3px 8px",borderRadius:2}}>{t.code}</span>
-          <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9.5,color:INK_M}}>{t.pages} pp.</span>
-        </div>
-        <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:22,fontWeight:700,
-          color:INK,lineHeight:1.15,marginBottom:5}}>{t.type}</div>
-        <div style={{fontFamily:"'Inter',sans-serif",fontSize:10,color:INK_M}}>{t.tag}</div>
-      </div>
-      <div style={{padding:"16px 24px"}}>
-        <div style={{display:"flex",gap:4,flexWrap:"wrap",marginBottom:14}}>
-          {[1,2,3,4,5,6,7,8].map(n=>{
-            const inc=t.sections.includes(n);
-            return(
-              <div key={n} style={{width:24,height:24,display:"flex",alignItems:"center",
-                justifyContent:"center",fontSize:9.5,fontWeight:600,borderRadius:2,
-                border:`1px solid ${inc?"rgba(168,121,40,.3)":BORDER_L}`,
-                background:inc?GOLD_DIM:"transparent",
-                color:inc?GOLD_B:INK_F}}>§{n}</div>
-            );
-          })}
-        </div>
-        <p style={{fontFamily:"'Inter',sans-serif",fontSize:13,color:INK_S,
-          lineHeight:1.6,margin:"0 0 16px"}}>{t.desc}</p>
-        <button onClick={()=>onDL(t)} className="btn-primary"
-          style={{width:"100%",background:NAVY,color:"#fff",border:"none",
-            padding:"11px 0",borderRadius:2,fontFamily:"'Inter',sans-serif",
-            fontSize:11,fontWeight:600,letterSpacing:"1.5px",textTransform:"uppercase",
-            cursor:"pointer"}}>
-          {downloading===t.code?"Preparing...":"Download Template"}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// ── DASHBOARD ─────────────────────────────────────────────────────────────────
-function Dashboard({onTool}){
-  const[toast,setToast]=useState(null),[dlg,setDlg]=useState(null);
-  const dl=(t)=>{
-    setDlg(t.code);
-    setTimeout(()=>{setDlg(null);setToast(`${t.code} template ready for download`);},1200);
-  };
-  return(
-    <div style={{background:BG,minHeight:"100vh"}}>
-      <div style={{height:60}}/>
-      <div style={{background:SURFACE,borderBottom:`1px solid ${BORDER}`,padding:"22px 32px",
-        display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:16}}>
+function CardHeader({ title, subtitle, action, icon }) {
+  return (
+    <div style={{
+      padding: "14px 20px",
+      borderBottom: "0.5px solid #f3f4f6",
+      display: "flex", alignItems: "center", justifyContent: "space-between",
+    }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        {icon && <span style={{ fontSize: 15, color: "#B8962E" }}>{icon}</span>}
         <div>
-          <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9.5,color:GOLD,
-            textTransform:"uppercase",letterSpacing:"2px",marginBottom:6}}>MERIDIAN · REPORT LIBRARY</div>
-          <h1 style={{fontFamily:"'Cormorant Garamond',serif",fontSize:32,fontWeight:700,
-            color:INK,margin:"0 0 4px",lineHeight:1.1}}>Report Template Library</h1>
-          <p style={{fontFamily:"'Inter',sans-serif",fontSize:13,color:INK_S,margin:0}}>
-            Seven MER advisory report families — MAS-GUARD-001 compliant
-          </p>
-        </div>
-        <div style={{display:"flex",gap:10}}>
-          <button onClick={()=>onTool("checker")} className="btn-outline"
-            style={{fontFamily:"'Inter',sans-serif",fontSize:12,color:INK_S,
-              border:`1px solid ${BORDER}`,background:"transparent",
-              padding:"9px 16px",borderRadius:2,cursor:"pointer",fontWeight:500}}>
-            Guardrail Checker
-          </button>
-          <button onClick={()=>onTool("risk")} className="btn-outline"
-            style={{fontFamily:"'Inter',sans-serif",fontSize:12,color:INK_S,
-              border:`1px solid ${BORDER}`,background:"transparent",
-              padding:"9px 16px",borderRadius:2,cursor:"pointer",fontWeight:500}}>
-            Risk Scorer
-          </button>
+          <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 500, color: "#111827" }}>{title}</div>
+          {subtitle && <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 1, fontFamily: "'DM Sans', sans-serif" }}>{subtitle}</div>}
         </div>
       </div>
-      <div style={{maxWidth:1400,margin:"0 auto",padding:"36px 32px",
-        display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(340px,1fr))",gap:18}}>
-        {MER_TYPES.map((t,i)=>(
-          <ReportCard key={t.code} t={t} onDL={dl} downloading={dlg} idx={i}/>
+      {action && <div>{action}</div>}
+    </div>
+  );
+}
+
+function Badge({ text, variant = "neutral" }) {
+  const variants = {
+    neutral:  { bg: "#f9fafb", color: "#6b7280", border: "#e5e7eb" },
+    gold:     { bg: "rgba(184,150,46,0.1)", color: "#92701A", border: "rgba(184,150,46,0.3)" },
+    success:  { bg: "#d1fae5", color: "#065f46", border: "#a7f3d0" },
+    warn:     { bg: "#fef3c7", color: "#92400e", border: "#fde68a" },
+    danger:   { bg: "#fde8e8", color: "#991b1b", border: "#fca5a5" },
+    info:     { bg: "#eff6ff", color: "#1e40af", border: "#bfdbfe" },
+  };
+  const v = variants[variant] || variants.neutral;
+  return (
+    <span style={{
+      display: "inline-flex", alignItems: "center",
+      fontSize: 10, fontWeight: 500,
+      padding: "2px 9px", borderRadius: 20,
+      background: v.bg, color: v.color,
+      border: `0.5px solid ${v.border}`,
+      letterSpacing: "0.04em",
+      fontFamily: "'DM Sans', sans-serif",
+    }}>{text}</span>
+  );
+}
+
+function StatusDot({ status }) {
+  const map = {
+    draft:     { color: "#f59e0b", label: "Draft" },
+    review:    { color: "#3b82f6", label: "In Review" },
+    completed: { color: "#10b981", label: "Completed" },
+  };
+  const s = map[status] || map.draft;
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, color: s.color, fontFamily: "'DM Sans', sans-serif" }}>
+      <span style={{ width: 7, height: 7, borderRadius: "50%", background: s.color, display: "inline-block" }} />
+      {s.label}
+    </span>
+  );
+}
+
+function Btn({ children, onClick, variant = "default", style = {}, disabled = false }) {
+  const variants = {
+    default: { bg: "#fff", color: "#374151", border: "#d1d5db", hoverBg: "#f9fafb" },
+    gold:    { bg: "#B8962E", color: "#fff",    border: "#B8962E", hoverBg: "#9E7F28" },
+    ghost:   { bg: "transparent", color: "#6b7280", border: "transparent", hoverBg: "#f9fafb" },
+    danger:  { bg: "#fff", color: "#dc2626", border: "#fca5a5", hoverBg: "#fef2f2" },
+  };
+  const v = variants[variant];
+  const [hovered, setHovered] = useState(false);
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        display: "inline-flex", alignItems: "center", gap: 6,
+        padding: "7px 14px", borderRadius: 8,
+        fontSize: 13, fontWeight: 500, cursor: disabled ? "not-allowed" : "pointer",
+        border: `0.5px solid ${v.border}`,
+        background: hovered && !disabled ? v.hoverBg : v.bg,
+        color: disabled ? "#9ca3af" : v.color,
+        fontFamily: "'DM Sans', sans-serif",
+        transition: "all 0.12s",
+        outline: "none",
+        opacity: disabled ? 0.6 : 1,
+        ...style,
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function FormField({ label, children, hint }) {
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <label style={{ display: "block", fontSize: 12, fontWeight: 500, color: "#374151", marginBottom: 5, fontFamily: "'DM Sans', sans-serif" }}>{label}</label>
+      {children}
+      {hint && <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 3, fontFamily: "'DM Sans', sans-serif" }}>{hint}</div>}
+    </div>
+  );
+}
+
+const inputStyle = {
+  width: "100%",
+  padding: "8px 12px",
+  border: "0.5px solid #d1d5db",
+  borderRadius: 8,
+  fontSize: 13,
+  fontFamily: "'DM Sans', sans-serif",
+  color: "#111827",
+  background: "#fff",
+  outline: "none",
+  boxSizing: "border-box",
+  transition: "border-color 0.15s",
+};
+
+function Input({ value, onChange, placeholder, type = "text", readOnly }) {
+  const [focused, setFocused] = useState(false);
+  return (
+    <input
+      type={type}
+      value={value}
+      onChange={e => onChange && onChange(e.target.value)}
+      placeholder={placeholder}
+      readOnly={readOnly}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
+      style={{ ...inputStyle, borderColor: focused ? "#B8962E" : "#d1d5db", cursor: readOnly ? "default" : "text" }}
+    />
+  );
+}
+
+function Select({ value, onChange, options, placeholder }) {
+  const [focused, setFocused] = useState(false);
+  return (
+    <select
+      value={value}
+      onChange={e => onChange(e.target.value)}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
+      style={{ ...inputStyle, borderColor: focused ? "#B8962E" : "#d1d5db", cursor: "pointer" }}
+    >
+      {placeholder && <option value="">{placeholder}</option>}
+      {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+    </select>
+  );
+}
+
+function Textarea({ value, onChange, placeholder, rows = 3 }) {
+  const [focused, setFocused] = useState(false);
+  return (
+    <textarea
+      value={value}
+      onChange={e => onChange(e.target.value)}
+      placeholder={placeholder}
+      rows={rows}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
+      style={{ ...inputStyle, resize: "vertical", borderColor: focused ? "#B8962E" : "#d1d5db", minHeight: 80, lineHeight: 1.6 }}
+    />
+  );
+}
+
+// ─── VIEWS ────────────────────────────────────────────────────────────────────
+
+function DashboardView({ onNav }) {
+  const stats = [
+    { label: "Active Engagements", value: 4, sub: "2 in draft · 1 in review", icon: "◈" },
+    { label: "Guardrails Checked", value: 284, sub: "This month", icon: "◆" },
+    { label: "Reports Completed", value: 17, sub: "YTD 2026", icon: "✓" },
+    { label: "AI Flags Raised", value: 12, sub: "Human review required", icon: "⚑" },
+  ];
+
+  return (
+    <div style={{ padding: "28px 32px" }}>
+      <div style={{ marginBottom: 28 }}>
+        <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 26, fontWeight: 500, color: "#111827", margin: 0 }}>Good morning, Ahmad</h1>
+        <p style={{ fontSize: 13, color: "#6b7280", marginTop: 4, fontFamily: "'DM Sans', sans-serif" }}>Tuesday, 9 June 2026 · Meridian RE Advisory Platform</p>
+      </div>
+
+      {/* Stat Cards */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 28 }}>
+        {stats.map((s, i) => (
+          <Card key={i}>
+            <div style={{ padding: "16px 18px" }}>
+              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 12 }}>
+                <div style={{ fontSize: 12, color: "#6b7280", fontFamily: "'DM Sans', sans-serif", fontWeight: 500 }}>{s.label}</div>
+                <span style={{ fontSize: 16, color: "#B8962E", opacity: 0.7 }}>{s.icon}</span>
+              </div>
+              <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 30, fontWeight: 500, color: "#111827", lineHeight: 1 }}>{s.value}</div>
+              <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 6, fontFamily: "'DM Sans', sans-serif" }}>{s.sub}</div>
+            </div>
+          </Card>
         ))}
       </div>
-      {toast&&<Toast msg={toast} onClose={()=>setToast(null)}/>}
-    </div>
-  );
-}
 
-// ── GUARDRAIL CHECKER ─────────────────────────────────────────────────────────
-function GuardrailChecker(){
-  const[checked,setChecked]=useState({}),[ref_code,setRef]=useState("");
-  const toggle=i=>setChecked(c=>({...c,[i]:!c[i]}));
-  const done=Object.values(checked).filter(Boolean).length;
-  const allDone=done===G_CHECKS.length;
-  const pct=Math.round(done/G_CHECKS.length*100);
-  return(
-    <div style={{background:BG,minHeight:"100vh"}}>
-      <div style={{height:60}}/>
-      <div style={{maxWidth:900,margin:"0 auto",padding:"48px 32px"}}>
-        <SectionLabel num="TOOL" label="Guardrail Compliance Checker"/>
-        <h1 style={{fontFamily:"'Cormorant Garamond',serif",fontSize:"clamp(28px,4vw,44px)",
-          fontWeight:700,color:INK,margin:"0 0 12px",lineHeight:1.1}}>
-          Compliance Verification
-        </h1>
-        <p style={{fontFamily:"'Inter',sans-serif",fontSize:14,color:INK_S,margin:"0 0 28px",lineHeight:1.6,maxWidth:560}}>
-          Work through the 12-point compliance checklist before finalising any MER advisory report. Items marked HUMAN REQ. require explicit advisor sign-off.
-        </p>
-        <div style={{marginBottom:24}}>
-          <label style={{display:"block",fontFamily:"'Inter',sans-serif",fontSize:11,
-            color:INK_M,fontWeight:600,letterSpacing:"1.5px",textTransform:"uppercase",marginBottom:8}}>
-            Engagement Reference
-          </label>
-          <input value={ref_code} onChange={e=>setRef(e.target.value)}
-            placeholder="e.g. MER-2025-001"
-            style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,
-              background:SURFACE,border:`1px solid ${BORDER}`,color:INK,
-              borderRadius:2,padding:"11px 14px",width:"100%",maxWidth:340,
-              boxSizing:"border-box",transition:"border-color .15s"}}/>
-        </div>
-        <div style={{background:SURFACE,border:`1px solid ${BORDER}`,borderRadius:3,
-          padding:"16px 20px",marginBottom:24,display:"flex",
-          alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:12}}>
+      {/* Recent Engagements */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 20 }}>
+        <Card>
+          <CardHeader title="Recent engagements" icon="◈" action={<Btn onClick={() => onNav("builder")}>New Report +</Btn>} />
           <div>
-            <div style={{fontFamily:"'Inter',sans-serif",fontSize:11,color:INK_M,
-              textTransform:"uppercase",letterSpacing:"1.5px",marginBottom:8}}>Compliance Score</div>
-            <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:13,color:allDone?UP:INK}}>
-              {done}/{G_CHECKS.length} — {pct}%
-            </div>
-          </div>
-          <div style={{flex:1,minWidth:200,maxWidth:320}}>
-            <div style={{height:4,background:BORDER_L,borderRadius:2,overflow:"hidden"}}>
-              <div style={{height:"100%",width:`${pct}%`,
-                background:allDone?UP:NAVY,borderRadius:2,
-                transition:"width .3s ease"}}/>
-            </div>
-          </div>
-        </div>
-        <div style={{background:SURFACE,border:`1px solid ${BORDER}`,borderRadius:3,overflow:"hidden",marginBottom:24}}>
-          {G_CHECKS.map((text,i)=>{
-            const isChecked=!!checked[i];
-            const needsHuman=G_HUMAN.includes(i);
-            return(
-              <div key={i} onClick={()=>toggle(i)}
-                style={{display:"flex",alignItems:"flex-start",gap:14,padding:"14px 18px",
-                  borderBottom:i<G_CHECKS.length-1?`1px solid ${BORDER_L}`:"none",
-                  background:isChecked?"rgba(39,103,73,.03)":"transparent",
-                  cursor:"pointer",transition:"background .15s"}}
-                onMouseEnter={e=>{if(!isChecked)e.currentTarget.style.background=GOLD_DIM;}}
-                onMouseLeave={e=>{e.currentTarget.style.background=isChecked?"rgba(39,103,73,.03)":"transparent";}}>
-                <div style={{width:18,height:18,border:`1.5px solid ${isChecked?NAVY:BORDER}`,
-                  borderRadius:3,background:isChecked?NAVY:"transparent",
-                  display:"flex",alignItems:"center",justifyContent:"center",
-                  flexShrink:0,marginTop:2,transition:"all .15s"}}>
-                  {isChecked&&<span style={{color:"#fff",fontSize:11,lineHeight:1,fontWeight:700}}>✓</span>}
+            {ENGAGEMENTS.map((e, i) => (
+              <div key={i} style={{
+                padding: "14px 20px",
+                borderBottom: i < ENGAGEMENTS.length - 1 ? "0.5px solid #f3f4f6" : "none",
+                display: "flex", alignItems: "center", gap: 16,
+              }}>
+                <div style={{
+                  width: 36, height: 36, borderRadius: 8,
+                  background: "rgba(184,150,46,0.08)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 12, color: "#B8962E", fontWeight: 600,
+                  flexShrink: 0, fontFamily: "'DM Sans', sans-serif",
+                }}>
+                  {e.type.split("-")[1]}
                 </div>
-                <div style={{flex:1}}>
-                  <span style={{fontFamily:"'Inter',sans-serif",fontSize:13.5,
-                    color:isChecked?INK_M:INK,
-                    textDecoration:isChecked?"line-through":"none",
-                    lineHeight:1.5}}>{text}</span>
-                  {needsHuman&&(
-                    <span style={{fontFamily:"'Inter',sans-serif",fontSize:9,fontWeight:600,
-                      color:AMBER,background:"rgba(154,107,24,.06)",
-                      border:`1px solid rgba(154,107,24,.2)`,
-                      padding:"2px 6px",borderRadius:2,marginLeft:10,
-                      letterSpacing:"0.5px"}}>HUMAN REQ.</span>
-                  )}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 500, color: "#111827", fontFamily: "'DM Sans', sans-serif", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{e.client}</div>
+                  <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 1, fontFamily: "'DM Sans', sans-serif", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{e.property}</div>
+                </div>
+                <div style={{ textAlign: "right", flexShrink: 0 }}>
+                  <StatusDot status={e.status} />
+                  <div style={{ fontSize: 10, color: "#9ca3af", marginTop: 3, fontFamily: "'DM Sans', sans-serif" }}>{e.ref}</div>
                 </div>
               </div>
-            );
-          })}
-        </div>
-        {allDone&&(
-          <div style={{border:`1px solid rgba(39,103,73,.3)`,background:"rgba(39,103,73,.05)",
-            borderRadius:3,padding:"16px 20px",marginBottom:20,
-            fontFamily:"'Inter',sans-serif",fontSize:13.5,color:UP,lineHeight:1.5}}>
-            All {G_CHECKS.length} compliance checks verified. This report meets MAS-GUARD-001 requirements.
-            {ref_code&&<span style={{fontFamily:"'IBM Plex Mono',monospace",marginLeft:8,fontSize:12}}>Ref: {ref_code}</span>}
-          </div>
-        )}
-        <button onClick={()=>{setChecked({});setRef("");}} className="btn-outline"
-          style={{fontFamily:"'Inter',sans-serif",fontSize:12,color:INK_S,
-            border:`1px solid ${BORDER}`,background:"transparent",
-            padding:"10px 20px",borderRadius:2,cursor:"pointer",fontWeight:500}}>
-          Reset Checklist
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// ── RISK SCORER ───────────────────────────────────────────────────────────────
-function RiskScorer(){
-  const[risks,setRisks]=useState([
-    {id:1,name:"Planning approval delay",l:3,i:4},
-    {id:2,name:"Market absorption slower than forecast",l:4,i:3},
-    {id:3,name:"Construction cost overrun",l:3,i:5},
-    {id:4,name:"Interest rate increase",l:2,i:4},
-    {id:5,name:"Regulatory change (Act 242)",l:2,i:5},
-  ]);
-  const[input,setInput]=useState(""),nextId=useRef(10);
-  const addRisk=()=>{
-    if(!input.trim())return;
-    setRisks(r=>[...r,{id:nextId.current++,name:input.trim(),l:3,i:3}]);
-    setInput("");
-  };
-  const updateRisk=(id,field,delta)=>{
-    setRisks(r=>r.map(x=>x.id===id?{...x,[field]:Math.max(1,Math.min(5,x[field]+delta))}:x));
-  };
-  const delRisk=(id)=>setRisks(r=>r.filter(x=>x.id!==id));
-  const getSev=(score)=>score>=15?"Critical":score>=9?"High":score>=4?"Medium":"Low";
-  const getSevColor=(score)=>score>=15?DOWN:score>=9?GOLD:score>=4?AMBER:UP;
-  const g05ok=risks.length>=5;
-  const Stepper=({val,onMinus,onPlus})=>(
-    <div style={{display:"flex",alignItems:"center",gap:0,border:`1px solid ${BORDER}`,borderRadius:2,overflow:"hidden"}}>
-      <button onClick={onMinus} style={{width:28,height:32,background:"transparent",
-        border:"none",cursor:"pointer",color:INK_S,fontSize:14,fontWeight:600,
-        borderRight:`1px solid ${BORDER}`,display:"flex",alignItems:"center",justifyContent:"center"}}>−</button>
-      <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:700,
-        color:NAVY,width:24,textAlign:"center"}}>{val}</span>
-      <button onClick={onPlus} style={{width:28,height:32,background:"transparent",
-        border:"none",cursor:"pointer",color:INK_S,fontSize:14,fontWeight:600,
-        borderLeft:`1px solid ${BORDER}`,display:"flex",alignItems:"center",justifyContent:"center"}}>+</button>
-    </div>
-  );
-  return(
-    <div style={{background:BG,minHeight:"100vh"}}>
-      <div style={{height:60}}/>
-      <div style={{maxWidth:900,margin:"0 auto",padding:"48px 32px"}}>
-        <SectionLabel num="TOOL" label="Risk Register Builder"/>
-        <h1 style={{fontFamily:"'Cormorant Garamond',serif",fontSize:"clamp(28px,4vw,44px)",
-          fontWeight:700,color:INK,margin:"0 0 12px",lineHeight:1.1}}>
-          Risk Register
-        </h1>
-        <p style={{fontFamily:"'Inter',sans-serif",fontSize:14,color:INK_S,margin:"0 0 28px",lineHeight:1.6,maxWidth:560}}>
-          Build and score your engagement risk register. G-05 requires a minimum of 5 risks, each scored Likelihood × Impact (1–5 scale).
-        </p>
-        <div style={{display:"flex",gap:10,marginBottom:28,maxWidth:560}}>
-          <input value={input} onChange={e=>setInput(e.target.value)}
-            onKeyDown={e=>{if(e.key==="Enter")addRisk();}}
-            placeholder="Describe a new risk factor..."
-            style={{flex:1,fontFamily:"'Inter',sans-serif",fontSize:13,
-              background:SURFACE,border:`1px solid ${BORDER}`,color:INK,
-              borderRadius:2,padding:"11px 14px",boxSizing:"border-box",
-              transition:"border-color .15s"}}/>
-          <button onClick={addRisk} className="btn-primary"
-            style={{background:NAVY,color:"#fff",border:"none",
-              padding:"11px 20px",borderRadius:2,cursor:"pointer",
-              fontFamily:"'Inter',sans-serif",fontSize:12,fontWeight:600,
-              letterSpacing:"1px",textTransform:"uppercase",whiteSpace:"nowrap"}}>
-            + Add
-          </button>
-        </div>
-        <div style={{background:SURFACE,border:`1px solid ${BORDER}`,borderRadius:3,
-          overflow:"hidden",marginBottom:20}}>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 110px 110px 80px 80px 32px",
-            padding:"10px 18px",background:SURFACE_S,borderBottom:`1px solid ${BORDER}`,gap:10}}>
-            {["Risk Factor","Likelihood (1–5)","Impact (1–5)","Score","Severity",""].map((h,i)=>(
-              <span key={i} style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9.5,
-                color:INK_M,textTransform:"uppercase",letterSpacing:"0.5px",
-                textAlign:i>0?"center":"left"}}>{h}</span>
             ))}
           </div>
-          {risks.length===0&&(
-            <div style={{padding:"32px 18px",textAlign:"center",
-              fontFamily:"'Inter',sans-serif",fontSize:13,color:INK_F}}>
-              No risks added yet. Add at least 5 to meet G-05.
-            </div>
-          )}
-          {risks.map((r,i)=>{
-            const score=r.l*r.i;
-            const sev=getSev(score);
-            const col=getSevColor(score);
-            return(
-              <div key={r.id}
-                style={{display:"grid",gridTemplateColumns:"1fr 110px 110px 80px 80px 32px",
-                  padding:"12px 18px",
-                  borderBottom:i<risks.length-1?`1px solid ${BORDER_L}`:"none",
-                  background:i%2===0?"transparent":SURFACE_S,
-                  alignItems:"center",gap:10}}>
-                <span style={{fontFamily:"'Inter',sans-serif",fontSize:13,color:INK}}>{r.name}</span>
-                <div style={{display:"flex",justifyContent:"center"}}>
-                  <Stepper val={r.l} onMinus={()=>updateRisk(r.id,"l",-1)} onPlus={()=>updateRisk(r.id,"l",1)}/>
+        </Card>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <Card>
+            <CardHeader title="Guardrail summary" icon="◆" />
+            <div style={{ padding: "16px 20px" }}>
+              {[["Pass", 9, "#10b981"], ["Warning", 3, "#f59e0b"], ["Fail", 1, "#ef4444"]].map(([label, count, color]) => (
+                <div key={label} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: "50%", background: color, flexShrink: 0 }} />
+                  <div style={{ fontSize: 13, color: "#374151", flex: 1, fontFamily: "'DM Sans', sans-serif" }}>{label}</div>
+                  <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 18, fontWeight: 500, color: "#111827" }}>{count}</div>
                 </div>
-                <div style={{display:"flex",justifyContent:"center"}}>
-                  <Stepper val={r.i} onMinus={()=>updateRisk(r.id,"i",-1)} onPlus={()=>updateRisk(r.id,"i",1)}/>
-                </div>
-                <div style={{textAlign:"center"}}>
-                  <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:22,fontWeight:700,color:col}}>{score}</span>
-                </div>
-                <div style={{textAlign:"center"}}>
-                  <SevPill sev={sev}/>
-                </div>
-                <button onClick={()=>delRisk(r.id)}
-                  style={{background:"none",border:"none",color:INK_F,cursor:"pointer",
-                    fontSize:16,lineHeight:1,padding:0,
-                    display:"flex",alignItems:"center",justifyContent:"center"}}>×</button>
+              ))}
+              <div style={{ height: 6, borderRadius: 3, background: "#f3f4f6", overflow: "hidden", marginTop: 12, display: "flex" }}>
+                <div style={{ height: "100%", background: "#10b981", width: `${(9/13)*100}%`, transition: "width 0.6s" }} />
+                <div style={{ height: "100%", background: "#f59e0b", width: `${(3/13)*100}%`, transition: "width 0.6s" }} />
+                <div style={{ height: "100%", background: "#ef4444", width: `${(1/13)*100}%`, transition: "width 0.6s" }} />
               </div>
-            );
-          })}
-        </div>
-        <div style={{border:`1px solid ${g05ok?"rgba(39,103,73,.3)":"rgba(154,107,24,.2)"}`,
-          background:g05ok?"rgba(39,103,73,.05)":"rgba(154,107,24,.05)",
-          borderRadius:3,padding:"14px 18px",marginBottom:20,
-          display:"flex",alignItems:"center",gap:10}}>
-          <div style={{width:6,height:6,borderRadius:"50%",
-            background:g05ok?UP:AMBER,flexShrink:0}}/>
-          <span style={{fontFamily:"'Inter',sans-serif",fontSize:13,color:g05ok?UP:AMBER}}>
-            G-05 Compliance: {risks.length}/{5} risks registered
-            {g05ok?" — requirement met":" — minimum 5 required"}
-          </span>
+              <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 8, fontFamily: "'DM Sans', sans-serif" }}>MER-DEV-2026-014 · Last check 08 Jun 2026</div>
+            </div>
+          </Card>
+
+          <Card style={{ background: "rgba(184,150,46,0.03)", border: "0.5px solid rgba(184,150,46,0.2)" }}>
+            <div style={{ padding: "16px 20px" }}>
+              <div style={{ fontSize: 11, color: "#B8962E", fontWeight: 500, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 10, fontFamily: "'DM Sans', sans-serif" }}>AI Role Boundary</div>
+              {["Zoning & regulatory interpretation", "Physical site condition", "HBU legal permissibility (§7.1)", "Stakeholder / political risk"].map((item, i) => (
+                <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, fontSize: 12, color: "#6b7280", fontFamily: "'DM Sans', sans-serif" }}>
+                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#f59e0b", flexShrink: 0 }} />
+                  {item}
+                </div>
+              ))}
+              <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 6, fontFamily: "'DM Sans', sans-serif", lineHeight: 1.5 }}>These zones require human consultant review before report release. G-AI-02 enforced.</div>
+            </div>
+          </Card>
         </div>
       </div>
     </div>
   );
 }
 
-// ── APP ROOT ──────────────────────────────────────────────────────────────────
-export default function App(){
-  const[booted,setBooted]=useState(false);
-  const[page,setPage]=useState("landing");
-  const scrollRef=useRef(null);
+function BuilderView() {
+  const [activeTab, setActiveTab] = useState("configure");
+  const [form, setForm] = useState({
+    client: "", type: "", ref: "", property: "",
+    lead: "", reviewer: "", purpose: "", context: "", special: "",
+  });
+  const [generating, setGenerating] = useState(false);
+  const [genProgress, setGenProgress] = useState(0);
+  const [genStep, setGenStep] = useState("");
+  const [generated, setGenerated] = useState(false);
 
-  const enterApp=useCallback(()=>{
-    setPage("dashboard");
-  },[]);
+  const selectedType = REPORT_TYPES.find(t => t.code === form.type);
 
-  const goHome=useCallback(()=>{
-    setPage("landing");
-  },[]);
+  const updateForm = (key, val) => setForm(prev => ({ ...prev, [key]: val }));
 
-  const goTool=useCallback((tool)=>{
-    setPage(tool);
-  },[]);
+  const handleTypeChange = (val) => {
+    updateForm("type", val);
+    updateForm("ref", val ? generateRef(val) : "");
+  };
 
-  const onBack=useCallback(()=>{
-    if(page==="dashboard")goHome();
-    else setPage("dashboard");
-  },[page,goHome]);
+  const GUARD_STATUS = (() => {
+    const filled = form.client && form.type && form.lead && form.reviewer;
+    const dualOk = form.lead && form.reviewer && form.lead.toLowerCase() !== form.reviewer.toLowerCase();
+    if (!filled) return "incomplete";
+    if (!dualOk) return "error";
+    return "ready";
+  })();
 
-  return(
-    <>
-      <style>{CSS}</style>
-      {!booted&&<Boot onDone={()=>setBooted(true)}/>}
-      {booted&&(
-        <>
-          <Nav page={page} onBack={onBack}/>
-          {page==="landing"&&(
-            <div style={{paddingTop:60,height:"100vh",overflow:"hidden",boxSizing:"border-box"}}>
-              <LandingPage onEnter={enterApp} scrollRef={scrollRef} active={page==="landing"}/>
+  const GEN_STEPS = [
+    "Validating engagement header…",
+    "Running guardrail pre-checks…",
+    "Aggregating market data (JPPH, CBRE)…",
+    "Populating comparable transaction set…",
+    "Building financial model…",
+    "Running scenario analysis (Bear/Base/Bull)…",
+    "Drafting narrative sections…",
+    "Applying AI limitation flags…",
+    "Embedding disclaimer block (G-AI-01)…",
+    "Finalising report structure…",
+  ];
+
+  const handleGenerate = () => {
+    if (GUARD_STATUS !== "ready") return;
+    setGenerating(true);
+    setGenProgress(0);
+    let step = 0;
+    const iv = setInterval(() => {
+      step++;
+      const pct = Math.min(step * 10, 100);
+      setGenProgress(pct);
+      setGenStep(GEN_STEPS[step - 1] || "Complete!");
+      if (pct >= 100) {
+        clearInterval(iv);
+        setTimeout(() => {
+          setGenerating(false);
+          setGenerated(true);
+          setActiveTab("preview");
+        }, 500);
+      }
+    }, 400);
+  };
+
+  const activeSections = selectedType ? ALL_SECTIONS.filter(s => selectedType.sections.includes(s.num)) : ALL_SECTIONS;
+
+  const tabs = ["configure", "preview", "guardrails"];
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
+      {/* Page Header */}
+      <div style={{ background: "#fff", borderBottom: "0.5px solid #e5e7eb", padding: "20px 32px 0", flexShrink: 0 }}>
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 16 }}>
+          <div>
+            <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 22, fontWeight: 500, color: "#111827", margin: 0 }}>Report Builder</h2>
+            <p style={{ fontSize: 13, color: "#6b7280", marginTop: 3, fontFamily: "'DM Sans', sans-serif", margin: "4px 0 0" }}>Create structured consultancy reports with embedded MAS-GUARD-001 compliance</p>
+          </div>
+          <div style={{ display: "flex", gap: 10 }}>
+            <Btn onClick={() => {}}>↓ Export Draft</Btn>
+            <Btn variant="gold" onClick={handleGenerate} disabled={GUARD_STATUS !== "ready" || generating}>
+              {generating ? `${genProgress}%  Generating…` : "Generate Report ↗"}
+            </Btn>
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 0 }}>
+          {tabs.map(t => (
+            <button
+              key={t}
+              onClick={() => setActiveTab(t)}
+              style={{
+                padding: "10px 18px", fontSize: 13,
+                cursor: "pointer",
+                color: activeTab === t ? "#92701A" : "#6b7280",
+                fontWeight: activeTab === t ? 500 : 400,
+                borderBottom: activeTab === t ? "2px solid #B8962E" : "2px solid transparent",
+                background: "none", border: "none",
+                fontFamily: "'DM Sans', sans-serif",
+                transition: "color 0.12s",
+                textTransform: "capitalize",
+              }}
+            >{t}</button>
+          ))}
+        </div>
+      </div>
+
+      {/* Content */}
+      <div style={{ flex: 1, overflowY: "auto" }}>
+
+        {/* CONFIGURE TAB */}
+        {activeTab === "configure" && (
+          <div style={{ padding: "24px 32px" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: 20, alignItems: "start" }}>
+
+              {/* Left column */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                <Card>
+                  <CardHeader title="Engagement details" icon="◈" />
+                  <div style={{ padding: "20px" }}>
+                    <FormField label="Client name">
+                      <Input value={form.client} onChange={v => updateForm("client", v)} placeholder="e.g. Ivory Properties Sdn. Bhd." />
+                    </FormField>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                      <FormField label="Report type">
+                        <Select
+                          value={form.type}
+                          onChange={handleTypeChange}
+                          placeholder="Select type…"
+                          options={REPORT_TYPES.map(t => ({ value: t.code, label: `${t.code} — ${t.label}` }))}
+                        />
+                      </FormField>
+                      <FormField label="Engagement ref" hint="Auto-generated on type select">
+                        <Input value={form.ref} onChange={v => updateForm("ref", v)} placeholder="Auto-generated" readOnly={!!form.type} />
+                      </FormField>
+                    </div>
+                    <FormField label="Property / subject asset">
+                      <Input value={form.property} onChange={v => updateForm("property", v)} placeholder="e.g. Lot 4892, Jalan Hang Tuah, 75300 Melaka" />
+                    </FormField>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                      <FormField label="Lead consultant" hint="MRICS, MBVAP, MAI credential required">
+                        <Input value={form.lead} onChange={v => updateForm("lead", v)} placeholder="Name, MRICS / MBVAP" />
+                      </FormField>
+                      <FormField label="Reviewing advisor" hint="Must differ from Lead — G-PROC-01">
+                        <Input value={form.reviewer} onChange={v => updateForm("reviewer", v)} placeholder="Different person required" />
+                      </FormField>
+                    </div>
+                    {form.lead && form.reviewer && form.lead.toLowerCase() === form.reviewer.toLowerCase() && (
+                      <div style={{ padding: "10px 14px", background: "#fef2f2", border: "0.5px solid #fca5a5", borderRadius: 8, fontSize: 12, color: "#991b1b", display: "flex", gap: 8, alignItems: "flex-start", fontFamily: "'DM Sans', sans-serif" }}>
+                        ⚠ G-PROC-01 violation: Lead Consultant and Reviewing Advisor cannot be the same person.
+                      </div>
+                    )}
+                  </div>
+                </Card>
+
+                <Card>
+                  <CardHeader title="Scope & instructions" icon="◎" />
+                  <div style={{ padding: "20px" }}>
+                    <FormField label="Engagement purpose">
+                      <Textarea value={form.purpose} onChange={v => updateForm("purpose", v)} placeholder="Describe what the client needs this report for — investment decision, board approval, lender submission, planning application…" rows={3} />
+                    </FormField>
+                    <FormField label="Key market context & data points" hint="Paste verified data here — AI will use these as primary inputs, not substitute them">
+                      <Textarea value={form.context} onChange={v => updateForm("context", v)} placeholder="Market rents, absorption rates, comparable transactions, site details, financial parameters…" rows={4} />
+                    </FormField>
+                    <FormField label="Special instructions">
+                      <Textarea value={form.special} onChange={v => updateForm("special", v)} placeholder="e.g. Exclude retail from scope; client existing loan at 4.5% p.a.; focus on tourism-driven demand…" rows={2} />
+                    </FormField>
+                  </div>
+                </Card>
+
+                <Card>
+                  <CardHeader title="Sections to include" subtitle={selectedType ? `${selectedType.code} — ${selectedType.label}` : "Select report type above"} icon="▤" />
+                  <div style={{ padding: "16px 20px" }}>
+                    {activeSections.map((s) => (
+                      <div key={s.num} style={{
+                        display: "flex", alignItems: "center", gap: 12,
+                        padding: "8px 10px", borderRadius: 8, marginBottom: 4,
+                        background: "rgba(184,150,46,0.04)",
+                        border: "0.5px solid rgba(184,150,46,0.15)",
+                      }}>
+                        <div style={{
+                          width: 24, height: 24, borderRadius: "50%",
+                          background: "#B8962E", color: "#fff",
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          fontSize: 10, fontWeight: 600, flexShrink: 0,
+                          fontFamily: "'DM Sans', sans-serif",
+                        }}>{s.num}</div>
+                        <span style={{ flex: 1, fontSize: 13, color: "#374151", fontFamily: "'DM Sans', sans-serif" }}>{s.name}</span>
+                        <Badge text={s.required ? "required" : "conditional"} variant={s.required ? "gold" : "neutral"} />
+                      </div>
+                    ))}
+                    {!selectedType && <p style={{ fontSize: 13, color: "#9ca3af", fontFamily: "'DM Sans', sans-serif" }}>All sections shown — select a report type to filter.</p>}
+                  </div>
+                </Card>
+              </div>
+
+              {/* Right sidebar */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                {/* Guardrail status */}
+                <Card>
+                  <CardHeader title="Guardrail status" icon="◆" />
+                  <div style={{ padding: "14px" }}>
+                    <div style={{
+                      display: "flex", alignItems: "center", gap: 10,
+                      padding: "10px 14px", borderRadius: 8,
+                      marginBottom: 14,
+                      background: GUARD_STATUS === "ready" ? "#d1fae5" : GUARD_STATUS === "error" ? "#fde8e8" : "#fef3c7",
+                      border: `0.5px solid ${GUARD_STATUS === "ready" ? "#a7f3d0" : GUARD_STATUS === "error" ? "#fca5a5" : "#fde68a"}`,
+                    }}>
+                      <span style={{ fontSize: 14 }}>{GUARD_STATUS === "ready" ? "✓" : "⚠"}</span>
+                      <span style={{ fontSize: 12, color: GUARD_STATUS === "ready" ? "#065f46" : GUARD_STATUS === "error" ? "#991b1b" : "#92400e", fontFamily: "'DM Sans', sans-serif" }}>
+                        {GUARD_STATUS === "ready" ? "Ready to generate — critical guardrails met" : GUARD_STATUS === "error" ? "G-PROC-01: Dual sign-off violation" : "Fill required fields to validate guardrails"}
+                      </span>
+                    </div>
+                    {[
+                      { code: "G-SCOPE-01", label: "No certified value language", ok: true },
+                      { code: "G-PROC-01", label: "Dual sign-off", ok: form.lead && form.reviewer && form.lead.toLowerCase() !== form.reviewer.toLowerCase() },
+                      { code: "G-AI-01", label: "AI disclosure in §8", ok: !!form.type },
+                      { code: "G-EVID-01", label: "All claims will be sourced", ok: !!form.context },
+                      { code: "G-DISC-01", label: "COI disclosure present", ok: !!form.type },
+                      { code: "G-EVID-03", label: "FLS labels applied", ok: !!form.type },
+                    ].map((g, i) => (
+                      <div key={i} style={{
+                        display: "flex", alignItems: "flex-start", gap: 10,
+                        padding: "9px 12px", borderRadius: 8, marginBottom: 5,
+                        background: "#f9fafb", border: "0.5px solid #f3f4f6",
+                      }}>
+                        <div style={{
+                          width: 20, height: 20, borderRadius: "50%",
+                          background: g.ok ? "#d1fae5" : "#f3f4f6",
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          fontSize: 11, color: g.ok ? "#065f46" : "#9ca3af",
+                          flexShrink: 0,
+                        }}>{g.ok ? "✓" : "·"}</div>
+                        <div>
+                          <div style={{ fontSize: 10, color: "#9ca3af", fontWeight: 500, letterSpacing: "0.06em", fontFamily: "'DM Sans', sans-serif" }}>{g.code}</div>
+                          <div style={{ fontSize: 12, color: "#374151", fontFamily: "'DM Sans', sans-serif" }}>{g.label}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+
+                {/* Generate progress */}
+                {generating && (
+                  <Card>
+                    <div style={{ padding: "16px 18px" }}>
+                      <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 10, color: "#111827", fontFamily: "'DM Sans', sans-serif" }}>Generating report…</div>
+                      <div style={{ height: 6, background: "#f3f4f6", borderRadius: 3, overflow: "hidden", marginBottom: 8 }}>
+                        <div style={{ height: "100%", width: `${genProgress}%`, background: "#B8962E", borderRadius: 3, transition: "width 0.4s" }} />
+                      </div>
+                      <div style={{ fontSize: 11, color: "#9ca3af", fontFamily: "'DM Sans', sans-serif" }}>{genStep}</div>
+                    </div>
+                  </Card>
+                )}
+
+                {/* AI boundary card */}
+                <Card style={{ border: "0.5px solid rgba(184,150,46,0.2)", background: "rgba(184,150,46,0.02)" }}>
+                  <CardHeader title="AI role boundaries" icon="⚑" />
+                  <div style={{ padding: "14px 16px" }}>
+                    <div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 10, fontFamily: "'DM Sans', sans-serif" }}>Human review mandatory before release (G-AI-02):</div>
+                    {["Zoning & regulatory interpretation", "Physical site condition assessment", "HBU legal permissibility (§7.1)", "Stakeholder / political risk", "Risk Register final scoring"].map((item, i) => (
+                      <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, fontSize: 12, color: "#6b7280", fontFamily: "'DM Sans', sans-serif" }}>
+                        <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#f59e0b", flexShrink: 0 }} />
+                        {item}
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              </div>
             </div>
-          )}
-          {page==="dashboard"&&<Dashboard onTool={goTool}/>}
-          {page==="checker"&&<GuardrailChecker/>}
-          {page==="risk"&&<RiskScorer/>}
-        </>
-      )}
-    </>
+          </div>
+        )}
+
+        {/* PREVIEW TAB */}
+        {activeTab === "preview" && (
+          <div style={{ padding: "24px 32px" }}>
+            <div style={{ maxWidth: 780, margin: "0 auto" }}>
+              <Card>
+                <div style={{ padding: "28px 32px" }}>
+                  {/* Report badge + ref */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
+                    <Badge text="MER-DEV — Development Feasibility Opinion" variant="gold" />
+                    <Badge text="DRAFT — NOT FOR RELIANCE" variant="warn" />
+                  </div>
+
+                  {/* Header block */}
+                  <div style={{ borderLeft: "3px solid #B8962E", paddingLeft: 20, marginBottom: 28, background: "rgba(184,150,46,0.03)", padding: "16px 20px", borderRadius: "0 10px 10px 0" }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "140px 1fr", gap: "5px 12px", fontSize: 12, fontFamily: "'DM Sans', sans-serif" }}>
+                      {[
+                        ["Client", form.client || "Ivory Properties Sdn. Bhd."],
+                        ["Engagement ref", form.ref || "MER-DEV-2026-014"],
+                        ["Subject", form.property || "Lot 4892, Jalan Hang Tuah, 75300 Melaka"],
+                        ["Report date", "9 June 2026"],
+                        ["Lead consultant", form.lead || "Ahmad Rizal Hasan, MRICS, MBVAP"],
+                        ["Reviewed by", form.reviewer || "Dr. Nurul Ain Zakaria, MRICS"],
+                        ["Classification", "CONFIDENTIAL — Client Use Only"],
+                      ].map(([k, v]) => (
+                        <>
+                          <span key={k} style={{ color: "#9ca3af" }}>{k}</span>
+                          <span key={v} style={{ color: "#111827", fontWeight: 500 }}>{v}</span>
+                        </>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* §2 Executive Summary */}
+                  <div style={{ borderBottom: "0.5px solid #f3f4f6", paddingBottom: 6, marginBottom: 14 }}>
+                    <h3 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 16, fontWeight: 500, color: "#111827", margin: 0 }}>§2 — Executive summary</h3>
+                  </div>
+                  <p style={{ fontSize: 13, color: "#374151", lineHeight: 1.75, marginBottom: 16, fontFamily: "'DM Sans', sans-serif" }}>
+                    This report provides a development feasibility opinion for a proposed mixed-use residential and retail development on Lot 4892, Jalan Hang Tuah, Melaka. The subject site extends approximately 2.1 acres and is currently vacant, with approved commercial and residential zoning under the Melaka Structure Plan 2035.
+                  </p>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
+                    {[
+                      "Residential demand in the Jonker Street corridor remains resilient at approximately 92% occupancy among completed projects within a 1km radius (JPPH Q1 2026).",
+                      "Base-case IRR of 14.2% and equity multiple of 1.87× over a 4-year development horizon are within the client's stated return threshold of ≥12% IRR.",
+                      "Tourism-dependent retail demand is the primary downside risk; the bear-case scenario yields IRR of 9.8%, which remains above the estimated WACC of 8.5%.",
+                    ].map((f, i) => (
+                      <div key={i} style={{ display: "flex", gap: 10, fontSize: 13, color: "#374151", fontFamily: "'DM Sans', sans-serif", lineHeight: 1.6 }}>
+                        <span style={{ color: "#B8962E", marginTop: 3, flexShrink: 0, fontWeight: 700 }}>◆</span>
+                        {f}
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ padding: "12px 16px", background: "rgba(184,150,46,0.06)", borderLeft: "2px solid #B8962E", borderRadius: "0 8px 8px 0", fontSize: 13, fontFamily: "'DM Sans', sans-serif", color: "#111827" }}>
+                    <strong style={{ color: "#92701A" }}>Primary recommendation:</strong> Proceed — <em>Conditional Go</em> subject to satisfactory Heritage Impact Assessment and lender confirmation of construction finance at ≤5.5% p.a.
+                  </div>
+
+                  {/* §4 Financial Summary */}
+                  <div style={{ borderBottom: "0.5px solid #f3f4f6", paddingBottom: 6, marginBottom: 14, marginTop: 28 }}>
+                    <h3 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 16, fontWeight: 500, color: "#111827", margin: 0 }}>§4 — Financial analysis (summary)</h3>
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 20 }}>
+                    {[
+                      { label: "Base-case IRR", value: "14.2%", sub: "4-year horizon" },
+                      { label: "Equity multiple", value: "1.87×", sub: "Base case" },
+                      { label: "Total dev. cost", value: "MYR 42M", sub: "Hard + soft + finance" },
+                      { label: "GDV (est.)", value: "MYR 67M", sub: "Indicative — not certified" },
+                      { label: "Bear-case IRR", value: "9.8%", sub: "Tourism demand shock" },
+                      { label: "Development margin", value: "23.4%", sub: "On cost basis" },
+                    ].map((s, i) => (
+                      <div key={i} style={{ padding: "12px 14px", background: "#f9fafb", borderRadius: 8, border: "0.5px solid #f3f4f6" }}>
+                        <div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 4, fontFamily: "'DM Sans', sans-serif" }}>{s.label}</div>
+                        <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 22, fontWeight: 500, color: "#111827" }}>{s.value}</div>
+                        <div style={{ fontSize: 11, color: "#6b7280", marginTop: 2, fontFamily: "'DM Sans', sans-serif" }}>{s.sub}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ padding: "10px 14px", background: "#fffbeb", border: "0.5px solid #fde68a", borderRadius: 8, fontSize: 11, color: "#92400e", fontFamily: "'DM Sans', sans-serif", marginBottom: 20 }}>
+                    ⚑ Forward-looking statement: The figures above are projections based on assumptions in the Key Assumptions Register (§4.5). Actual outcomes may differ materially. This is not a certified valuation (G-EVID-03, G-SCOPE-01 compliant).
+                  </div>
+
+                  {/* §5 Risk Register */}
+                  <div style={{ borderBottom: "0.5px solid #f3f4f6", paddingBottom: 6, marginBottom: 14 }}>
+                    <h3 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 16, fontWeight: 500, color: "#111827", margin: 0 }}>§5.2 — Risk register</h3>
+                  </div>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, marginBottom: 24, fontFamily: "'DM Sans', sans-serif" }}>
+                    <thead>
+                      <tr style={{ background: "#f9fafb" }}>
+                        {["Risk", "L", "I", "Score", "Mitigation"].map(h => (
+                          <th key={h} style={{ padding: "8px 12px", textAlign: "left", color: "#6b7280", fontWeight: 500, borderBottom: "0.5px solid #e5e7eb", fontSize: 11, letterSpacing: "0.04em" }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {RISK_ROWS.map((r, i) => {
+                        const score = riskScore(r.l, r.i);
+                        const sc = riskColor(score);
+                        return (
+                          <tr key={i} style={{ borderBottom: "0.5px solid #f3f4f6" }}>
+                            <td style={{ padding: "9px 12px", color: "#374151" }}>{r.risk}</td>
+                            <td style={{ padding: "9px 12px" }}><span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 26, height: 20, borderRadius: 4, background: "#f3f4f6", color: "#374151", fontWeight: 500, fontSize: 11 }}>{r.l}</span></td>
+                            <td style={{ padding: "9px 12px" }}><span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 26, height: 20, borderRadius: 4, background: "#f3f4f6", color: "#374151", fontWeight: 500, fontSize: 11 }}>{r.i}</span></td>
+                            <td style={{ padding: "9px 12px" }}><span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 26, height: 20, borderRadius: 4, background: sc.bg, color: sc.color, fontWeight: 600, fontSize: 11 }}>{score}</span></td>
+                            <td style={{ padding: "9px 12px", color: "#6b7280", maxWidth: 220 }}>{r.mitigation}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+
+                  {/* §8 AI Disclosure */}
+                  <div style={{ borderBottom: "0.5px solid #f3f4f6", paddingBottom: 6, marginBottom: 14 }}>
+                    <h3 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 16, fontWeight: 500, color: "#111827", margin: 0 }}>§8 — Disclaimer & AI disclosure</h3>
+                  </div>
+                  <div style={{ padding: "14px 18px", background: "rgba(184,150,46,0.04)", border: "0.5px solid rgba(184,150,46,0.2)", borderRadius: 10, marginBottom: 14 }}>
+                    <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+                      <span style={{ fontSize: 16, color: "#B8962E", flexShrink: 0, marginTop: 1 }}>⊕</span>
+                      <div style={{ fontSize: 12, color: "#374151", lineHeight: 1.7, fontFamily: "'DM Sans', sans-serif" }}>
+                        This report has been prepared by Meridian RE Advisory solely for the use of {form.client || "Ivory Properties Sdn. Bhd."} in connection with {form.ref || "MER-DEV-2026-014"}. It is provided as a <strong>consultancy opinion</strong> and does not constitute a certified valuation under RICS Red Book Global Standards (January 2025) or USPAP, nor does it constitute legal, tax, or financial advice.
+                        <br /><br />
+                        <strong>AI disclosure (G-AI-01):</strong> AI-assisted tools were used for data aggregation, scenario modelling, and draft narrative production. All outputs have been reviewed, validated, and accepted by the named consultant. The professional opinions expressed are those of <strong>{form.lead || "Ahmad Rizal Hasan, MRICS, MBVAP"}</strong> and not of any AI system.
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                    <div style={{ padding: "12px 16px", background: "#f9fafb", borderRadius: 8, border: "0.5px solid #e5e7eb", fontSize: 12, fontFamily: "'DM Sans', sans-serif" }}>
+                      <div style={{ color: "#9ca3af", marginBottom: 4 }}>Lead consultant</div>
+                      <div style={{ color: "#111827", fontWeight: 500 }}>{form.lead || "Ahmad Rizal Hasan, MRICS, MBVAP"}</div>
+                    </div>
+                    <div style={{ padding: "12px 16px", background: "#f9fafb", borderRadius: 8, border: "0.5px solid #e5e7eb", fontSize: 12, fontFamily: "'DM Sans', sans-serif" }}>
+                      <div style={{ color: "#9ca3af", marginBottom: 4 }}>Reviewing advisor</div>
+                      <div style={{ color: "#111827", fontWeight: 500 }}>{form.reviewer || "Dr. Nurul Ain Zakaria, MRICS"}</div>
+                    </div>
+                  </div>
+                </div>
+              </Card>
+            </div>
+          </div>
+        )}
+
+        {/* GUARDRAILS TAB */}
+        {activeTab === "guardrails" && (
+          <div style={{ padding: "24px 32px" }}>
+            <div style={{ maxWidth: 820 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+                <div>
+                  <p style={{ fontSize: 13, color: "#6b7280", fontFamily: "'DM Sans', sans-serif", margin: 0 }}>MAS-GUARD-001 · 22 guardrails · 5 domains · Malaysia jurisdiction</p>
+                </div>
+                <div style={{ display: "flex", gap: 10 }}>
+                  <Badge text="9 Pass" variant="success" />
+                  <Badge text="3 Warning" variant="warn" />
+                  <Badge text="1 Fail" variant="danger" />
+                </div>
+              </div>
+
+              {["Scope", "Evidence", "AI Use", "Disclosure", "Process"].map(domain => {
+                const items = GUARDRAILS.filter(g => g.domain === domain);
+                const statusMap = {
+                  "G-SCOPE-01": "pass", "G-SCOPE-02": "warn", "G-SCOPE-03": "pass",
+                  "G-EVID-01": "pass", "G-EVID-02": "fail", "G-EVID-03": "pass", "G-EVID-04": "warn", "G-EVID-05": "pass",
+                  "G-AI-01": "pass", "G-AI-02": "pass", "G-AI-03": "pass", "G-AI-04": "pass", "G-AI-05": "pass",
+                  "G-DISC-01": "pass", "G-DISC-02": "pass", "G-DISC-03": "pass", "G-DISC-04": "warn",
+                  "G-PROC-01": "pass", "G-PROC-02": "pass", "G-PROC-03": "pass", "G-PROC-04": "pass", "G-PROC-05": "pass",
+                };
+                const statusStyle = {
+                  pass:  { icon: "✓", bg: "#d1fae5", color: "#065f46", borderBg: "#f0fdf4", borderColor: "#bbf7d0" },
+                  warn:  { icon: "▲", bg: "#fef3c7", color: "#92400e", borderBg: "#fffbeb", borderColor: "#fde68a" },
+                  fail:  { icon: "✕", bg: "#fde8e8", color: "#991b1b", borderBg: "#fef2f2", borderColor: "#fca5a5" },
+                  idle:  { icon: "·", bg: "#f3f4f6", color: "#9ca3af", borderBg: "#f9fafb", borderColor: "#e5e7eb" },
+                };
+                return (
+                  <div key={domain} style={{ marginBottom: 24 }}>
+                    <div style={{
+                      fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase",
+                      color: "#9ca3af", fontWeight: 500, marginBottom: 10,
+                      paddingBottom: 8, borderBottom: "0.5px solid #e5e7eb",
+                      fontFamily: "'DM Sans', sans-serif",
+                    }}>Domain {["Scope","Evidence","AI Use","Disclosure","Process"].indexOf(domain) + 1} — {domain}</div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      {items.map(g => {
+                        const st = statusStyle[statusMap[g.code] || "idle"];
+                        return (
+                          <div key={g.code} style={{
+                            display: "flex", alignItems: "flex-start", gap: 12,
+                            padding: "12px 14px", borderRadius: 10,
+                            background: st.borderBg, border: `0.5px solid ${st.borderColor}`,
+                          }}>
+                            <div style={{
+                              width: 24, height: 24, borderRadius: "50%",
+                              background: st.bg, color: st.color,
+                              display: "flex", alignItems: "center", justifyContent: "center",
+                              fontSize: 11, fontWeight: 700, flexShrink: 0,
+                            }}>{st.icon}</div>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 3 }}>
+                                <span style={{ fontSize: 10, fontWeight: 600, color: "#9ca3af", letterSpacing: "0.08em", fontFamily: "'DM Sans', sans-serif" }}>{g.code}</span>
+                                <Badge text={g.severity} variant={g.severity === "Critical" ? "danger" : g.severity === "High" ? "warn" : "neutral"} />
+                                <Badge text={g.waivable === false ? "Non-waivable" : `Waivable (${g.waivable})`} variant={g.waivable === false ? "info" : "neutral"} />
+                              </div>
+                              <div style={{ fontSize: 13, fontWeight: 500, color: "#111827", marginBottom: 2, fontFamily: "'DM Sans', sans-serif" }}>{g.label}</div>
+                              <div style={{ fontSize: 12, color: "#6b7280", lineHeight: 1.5, fontFamily: "'DM Sans', sans-serif" }}>{g.desc}</div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+
+              <div style={{
+                display: "flex", alignItems: "center", gap: 16,
+                padding: "14px 18px", background: "#f9fafb",
+                border: "0.5px solid #e5e7eb", borderRadius: 10,
+                flexWrap: "wrap",
+              }}>
+                {[["Pass", 9, "#10b981"], ["Warning", 3, "#f59e0b"], ["Fail — resolve before release", 1, "#ef4444"]].map(([label, count, color]) => (
+                  <div key={label} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "#374151", fontFamily: "'DM Sans', sans-serif" }}>
+                    <span style={{ width: 10, height: 10, borderRadius: "50%", background: color }} />
+                    {label}: <strong style={{ color }}>{count}</strong>
+                  </div>
+                ))}
+                <div style={{ flex: 1 }} />
+                <div style={{ fontSize: 11, color: "#9ca3af", fontFamily: "'DM Sans', sans-serif" }}>Next review: Jun 2027 or upon RICS/BOVEAP change</div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function EngagementsView({ onNav }) {
+  const [filter, setFilter] = useState("all");
+  const filtered = filter === "all" ? ENGAGEMENTS : ENGAGEMENTS.filter(e => e.status === filter);
+
+  return (
+    <div style={{ padding: "28px 32px" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
+        <div>
+          <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 22, fontWeight: 500, color: "#111827", margin: 0 }}>Engagements</h2>
+          <p style={{ fontSize: 13, color: "#6b7280", marginTop: 4, fontFamily: "'DM Sans', sans-serif", margin: "4px 0 0" }}>{ENGAGEMENTS.length} total · 2 in progress</p>
+        </div>
+        <Btn variant="gold" onClick={() => onNav("builder")}>+ New Report</Btn>
+      </div>
+      <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
+        {["all", "draft", "review", "completed"].map(f => (
+          <button
+            key={f}
+            onClick={() => setFilter(f)}
+            style={{
+              padding: "6px 16px", borderRadius: 20, fontSize: 12, cursor: "pointer",
+              background: filter === f ? "#111827" : "#f3f4f6",
+              color: filter === f ? "#fff" : "#6b7280",
+              border: "none", fontFamily: "'DM Sans', sans-serif",
+              textTransform: "capitalize", transition: "all 0.12s",
+            }}
+          >{f === "all" ? "All" : f.charAt(0).toUpperCase() + f.slice(1)}</button>
+        ))}
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {filtered.map((e, i) => (
+          <Card key={i} style={{ cursor: "pointer" }}>
+            <div style={{ padding: "18px 22px", display: "flex", alignItems: "center", gap: 18 }}>
+              <div style={{
+                width: 44, height: 44, borderRadius: 10,
+                background: "rgba(184,150,46,0.08)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontFamily: "'Playfair Display', serif", fontSize: 13, fontWeight: 600, color: "#B8962E",
+                flexShrink: 0,
+              }}>{e.type.split("-")[1]}</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
+                  <span style={{ fontSize: 14, fontWeight: 500, color: "#111827", fontFamily: "'DM Sans', sans-serif" }}>{e.client}</span>
+                  <Badge text={e.type} variant="gold" />
+                </div>
+                <div style={{ fontSize: 12, color: "#6b7280", fontFamily: "'DM Sans', sans-serif" }}>{e.property}</div>
+                <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 3, fontFamily: "'DM Sans', sans-serif" }}>{e.ref} · {e.lead} · {e.date}</div>
+              </div>
+              <div style={{ textAlign: "right", flexShrink: 0 }}>
+                <StatusDot status={e.status} />
+                <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", marginTop: 8 }}>
+                  <span style={{ fontSize: 11, color: "#10b981", fontFamily: "'DM Sans', sans-serif" }}>✓ {e.guardrailScore.pass}</span>
+                  {e.guardrailScore.warn > 0 && <span style={{ fontSize: 11, color: "#f59e0b", fontFamily: "'DM Sans', sans-serif" }}>▲ {e.guardrailScore.warn}</span>}
+                  {e.guardrailScore.fail > 0 && <span style={{ fontSize: 11, color: "#ef4444", fontFamily: "'DM Sans', sans-serif" }}>✕ {e.guardrailScore.fail}</span>}
+                </div>
+              </div>
+            </div>
+          </Card>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function SkillConfigView() {
+  const [activeSection, setActiveSection] = useState("overview");
+  const sections = [
+    { id: "overview", label: "Overview" },
+    { id: "types", label: "Report types" },
+    { id: "ai-boundaries", label: "AI boundaries" },
+    { id: "guardrail-matrix", label: "Guardrail matrix" },
+    { id: "disclaimer", label: "Disclaimer template" },
+  ];
+
+  return (
+    <div style={{ padding: "28px 32px" }}>
+      <div style={{ marginBottom: 24 }}>
+        <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 22, fontWeight: 500, color: "#111827", margin: 0 }}>Skill Configuration</h2>
+        <p style={{ fontSize: 13, color: "#6b7280", marginTop: 4, fontFamily: "'DM Sans', sans-serif", margin: "4px 0 0" }}>re-consultancy-report · MAS-GUARD-001 · v1.0 · Effective June 2026</p>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "200px 1fr", gap: 20 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+          {sections.map(s => (
+            <button key={s.id} onClick={() => setActiveSection(s.id)} style={{
+              padding: "8px 12px", textAlign: "left", borderRadius: 8,
+              fontSize: 13, cursor: "pointer",
+              background: activeSection === s.id ? "rgba(184,150,46,0.08)" : "transparent",
+              color: activeSection === s.id ? "#92701A" : "#6b7280",
+              border: "none", borderLeft: activeSection === s.id ? "2px solid #B8962E" : "2px solid transparent",
+              fontFamily: "'DM Sans', sans-serif", fontWeight: activeSection === s.id ? 500 : 400,
+              transition: "all 0.12s",
+            }}>{s.label}</button>
+          ))}
+        </div>
+
+        <Card>
+          <div style={{ padding: "24px" }}>
+            {activeSection === "overview" && (
+              <div style={{ fontFamily: "'DM Sans', sans-serif" }}>
+                <div style={{ marginBottom: 20, padding: "14px 18px", background: "rgba(184,150,46,0.04)", border: "0.5px solid rgba(184,150,46,0.2)", borderRadius: 10, fontSize: 13, color: "#374151", lineHeight: 1.7 }}>
+                  This skill governs production of professional real estate consultancy reports on the Meridian RE Advisory Platform. It ensures every output is analytically rigorous, compliant with MAS-GUARD-001, clearly scoped as a <strong>consultancy opinion</strong> (not a certified RICS/USPAP valuation), appropriately caveated, and professionally signed off.
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  {[
+                    { key: "Skill name", val: "re-consultancy-report" },
+                    { key: "Guardrail doc", val: "MAS-GUARD-001 v1.0" },
+                    { key: "Jurisdiction", val: "Malaysia (primary) · Global" },
+                    { key: "Regulatory basis", val: "RICS Red Book 2025, Act 242, BOVEAP" },
+                    { key: "AI use", val: "Anthropic Claude Sonnet 4 (decision-support only)" },
+                    { key: "Effective date", val: "June 2026" },
+                    { key: "Review cycle", val: "Annual or on regulatory change" },
+                    { key: "Report types", val: "7 (MER-MKT through MER-SITE)" },
+                  ].map(({ key, val }) => (
+                    <div key={key} style={{ padding: "10px 14px", background: "#f9fafb", borderRadius: 8, border: "0.5px solid #e5e7eb" }}>
+                      <div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 2 }}>{key}</div>
+                      <div style={{ fontSize: 13, color: "#111827", fontWeight: 500 }}>{val}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {activeSection === "types" && (
+              <div>
+                {REPORT_TYPES.map((t, i) => (
+                  <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 14, padding: "14px 0", borderBottom: i < REPORT_TYPES.length - 1 ? "0.5px solid #f3f4f6" : "none" }}>
+                    <div style={{ width: 60, height: 32, borderRadius: 6, background: "rgba(184,150,46,0.1)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: "#92701A", fontFamily: "'DM Sans', sans-serif", letterSpacing: "0.04em" }}>{t.code.split("-")[1]}</span>
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 13, fontWeight: 500, color: "#111827", fontFamily: "'DM Sans', sans-serif" }}>{t.code} — {t.label}</div>
+                      <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2, fontFamily: "'DM Sans', sans-serif" }}>{t.desc}</div>
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>
+                        {t.sections.map(s => {
+                          const sec = ALL_SECTIONS.find(x => x.num === s);
+                          return <Badge key={s} text={`§${s} ${sec?.name}`} variant="neutral" />;
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {activeSection === "ai-boundaries" && (
+              <div style={{ fontFamily: "'DM Sans', sans-serif" }}>
+                <div style={{ fontSize: 13, color: "#374151", marginBottom: 20, lineHeight: 1.7 }}>
+                  AI may lead on data aggregation, comparable search, financial model population, scenario analysis, and draft narrative. The following zones require human consultant action before report release.
+                </div>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                  <thead>
+                    <tr style={{ background: "#f9fafb" }}>
+                      {["Task", "AI may lead", "Human must review", "Human must lead"].map(h => (
+                        <th key={h} style={{ padding: "8px 12px", textAlign: "left", color: "#6b7280", fontWeight: 500, borderBottom: "0.5px solid #e5e7eb", fontSize: 11 }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[
+                      ["Market data aggregation", "✓", "✓", ""],
+                      ["Comparable transaction search", "✓", "✓", ""],
+                      ["Financial model population", "✓", "✓", ""],
+                      ["Sensitivity analysis", "✓", "✓", ""],
+                      ["Draft narrative", "✓", "✓", ""],
+                      ["Regulatory & zoning interpretation", "", "", "✓"],
+                      ["Site visit & physical condition", "", "", "✓"],
+                      ["Stakeholder interviews", "", "", "✓"],
+                      ["HBU legal permissibility", "", "", "✓"],
+                      ["Risk Register final scores", "", "✓", ""],
+                      ["Final sign-off", "", "", "✓"],
+                    ].map((row, i) => (
+                      <tr key={i} style={{ borderBottom: "0.5px solid #f3f4f6" }}>
+                        {row.map((cell, j) => (
+                          <td key={j} style={{
+                            padding: "8px 12px",
+                            color: j === 0 ? "#374151" : cell === "✓" ? (j === 1 ? "#065f46" : j === 2 ? "#92400e" : "#991b1b") : "#e5e7eb",
+                            fontWeight: cell === "✓" ? 600 : 400,
+                          }}>{cell || "—"}</td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {activeSection === "guardrail-matrix" && (
+              <div>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, fontFamily: "'DM Sans', sans-serif" }}>
+                  <thead>
+                    <tr style={{ background: "#f9fafb" }}>
+                      {["Code", "Domain", "Severity", "Waivable?"].map(h => (
+                        <th key={h} style={{ padding: "8px 12px", textAlign: "left", color: "#6b7280", fontWeight: 500, borderBottom: "0.5px solid #e5e7eb", fontSize: 11 }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {GUARDRAILS.map((g, i) => (
+                      <tr key={i} style={{ borderBottom: "0.5px solid #f3f4f6" }}>
+                        <td style={{ padding: "7px 12px", color: "#374151", fontWeight: 500 }}>{g.code}</td>
+                        <td style={{ padding: "7px 12px", color: "#6b7280" }}>{g.domain}</td>
+                        <td style={{ padding: "7px 12px" }}>
+                          <Badge text={g.severity} variant={g.severity === "Critical" ? "danger" : g.severity === "High" ? "warn" : "neutral"} />
+                        </td>
+                        <td style={{ padding: "7px 12px" }}>
+                          <Badge text={g.waivable === false ? "No" : `Yes (${g.waivable})`} variant={g.waivable === false ? "info" : "success"} />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {activeSection === "disclaimer" && (
+              <div style={{ fontFamily: "'DM Sans', sans-serif" }}>
+                <div style={{ marginBottom: 12, fontSize: 13, color: "#6b7280" }}>Standard Section 8 disclaimer template. Required by G-AI-01 and G-DISC-01. Non-waivable.</div>
+                <div style={{ background: "#f9fafb", border: "0.5px solid #e5e7eb", borderRadius: 10, padding: "20px 22px", fontSize: 12, color: "#374151", lineHeight: 1.8, fontFamily: "monospace" }}>
+                  <p>This report has been prepared by Meridian RE Advisory ("Meridian") solely for the use of <strong>[Client Name]</strong> ("the Client") in connection with <strong>[Engagement Reference]</strong>. It is provided as a consultancy opinion and does not constitute a certified valuation under RICS Valuation – Global Standards (Red Book, January 2025) or USPAP, nor does it constitute legal, tax, or financial advice.</p>
+                  <br />
+                  <p>Meridian has relied on information provided by the Client, publicly available data, and proprietary data sources believed to be reliable. No independent verification of third-party data has been undertaken unless explicitly stated.</p>
+                  <br />
+                  <p><strong>AI disclosure (G-AI-01):</strong> AI-assisted tools were used in the preparation of this report for data aggregation, scenario modelling, and draft narrative production. All AI-assisted outputs have been reviewed, validated, and accepted by the named consultant(s) below. The professional opinions expressed are those of the named consultants and not of any AI system.</p>
+                  <br />
+                  <p><strong>Lead Consultant:</strong> [Name], [Credentials]<br /><strong>Reviewing Advisor:</strong> [Name], [Credentials]<br /><strong>Date of Sign-Off:</strong> [DD Month YYYY]<br /><strong>Meridian File Reference:</strong> [MER-TYPE-YYYY-SEQ]</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+function GuardrailLibraryView() {
+  const [search, setSearch] = useState("");
+  const [domainFilter, setDomainFilter] = useState("All");
+  const domains = ["All", "Scope", "Evidence", "AI Use", "Disclosure", "Process"];
+  const filtered = GUARDRAILS.filter(g =>
+    (domainFilter === "All" || g.domain === domainFilter) &&
+    (search === "" || g.code.toLowerCase().includes(search.toLowerCase()) || g.label.toLowerCase().includes(search.toLowerCase()) || g.desc.toLowerCase().includes(search.toLowerCase()))
+  );
+
+  return (
+    <div style={{ padding: "28px 32px" }}>
+      <div style={{ marginBottom: 24 }}>
+        <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 22, fontWeight: 500, color: "#111827", margin: 0 }}>Guardrail Library</h2>
+        <p style={{ fontSize: 13, color: "#6b7280", marginTop: 4, fontFamily: "'DM Sans', sans-serif", margin: "4px 0 0" }}>MAS-GUARD-001 · 22 rules · Document owner: Standards & Quality Committee</p>
+      </div>
+      <div style={{ display: "flex", gap: 12, marginBottom: 20, alignItems: "center" }}>
+        <input
+          placeholder="Search guardrails…"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          style={{ ...inputStyle, maxWidth: 280, borderColor: "#d1d5db" }}
+        />
+        <div style={{ display: "flex", gap: 6 }}>
+          {domains.map(d => (
+            <button key={d} onClick={() => setDomainFilter(d)} style={{
+              padding: "6px 14px", borderRadius: 20, fontSize: 12, cursor: "pointer",
+              background: domainFilter === d ? "#111827" : "#f3f4f6",
+              color: domainFilter === d ? "#fff" : "#6b7280",
+              border: "none", fontFamily: "'DM Sans', sans-serif",
+              transition: "all 0.12s",
+            }}>{d}</button>
+          ))}
+        </div>
+        <div style={{ flex: 1 }} />
+        <span style={{ fontSize: 12, color: "#9ca3af", fontFamily: "'DM Sans', sans-serif" }}>{filtered.length} results</span>
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {filtered.map((g, i) => (
+          <Card key={i}>
+            <div style={{ padding: "14px 18px", display: "flex", gap: 16, alignItems: "flex-start" }}>
+              <div style={{
+                width: 52, flexShrink: 0,
+                fontSize: 10, fontWeight: 700, color: "#B8962E",
+                letterSpacing: "0.04em", fontFamily: "'DM Sans', sans-serif",
+                marginTop: 2,
+              }}>{g.code}</div>
+              <div style={{ flex: 1 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 5 }}>
+                  <span style={{ fontSize: 13, fontWeight: 500, color: "#111827", fontFamily: "'DM Sans', sans-serif" }}>{g.label}</span>
+                </div>
+                <div style={{ fontSize: 12, color: "#6b7280", lineHeight: 1.6, fontFamily: "'DM Sans', sans-serif" }}>{g.desc}</div>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-end", flexShrink: 0 }}>
+                <Badge text={g.severity} variant={g.severity === "Critical" ? "danger" : g.severity === "High" ? "warn" : "neutral"} />
+                <Badge text={g.domain} variant="neutral" />
+                <Badge text={g.waivable === false ? "Non-waivable" : `Waivable (${g.waivable})`} variant={g.waivable === false ? "info" : "success"} />
+              </div>
+            </div>
+          </Card>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── APP ──────────────────────────────────────────────────────────────────────
+
+export default function App() {
+  const [activeNav, setActiveNav] = useState("dashboard");
+
+  useEffect(() => {
+    const link = document.createElement("link");
+    link.href = "https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,400&display=swap";
+    link.rel = "stylesheet";
+    document.head.appendChild(link);
+  }, []);
+
+  const renderView = () => {
+    switch (activeNav) {
+      case "dashboard":    return <DashboardView onNav={setActiveNav} />;
+      case "builder":      return <BuilderView />;
+      case "engagements":  return <EngagementsView onNav={setActiveNav} />;
+      case "guardrails":   return <GuardrailLibraryView />;
+      case "skill":        return <SkillConfigView />;
+      default:             return <DashboardView onNav={setActiveNav} />;
+    }
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", height: "100vh", background: "#f9fafb", fontFamily: "'DM Sans', sans-serif" }}>
+      <TopNav />
+      <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
+        <Sidebar active={activeNav} onNav={setActiveNav} />
+        <main style={{ flex: 1, overflowY: "auto" }}>
+          {renderView()}
+        </main>
+      </div>
+    </div>
   );
 }
