@@ -334,11 +334,11 @@ export default function Standards({ onNavigate }) {
             <p>Every consultancy report must contain these sections in order. Conditional sections are required only for the applicable report types listed in Section 02.</p>
           </div>
 
-          <Struct num="§1" title="Engagement Header">
+          <Struct num="S1" title="Engagement Header">
             <div className="doc-block"><span className="db-label">Section 1 — Engagement Header</span>{ENGAGEMENT_HEADER}</div>
           </Struct>
 
-          <Struct num="§2" title="Executive Summary">
+          <Struct num="S2" title="Executive Summary">
             <ul className="b-list">
               <li>Purpose of engagement (2–3 sentences)</li>
               <li>Key findings (3–5 bullet points, each ≤ 25 words)</li>
@@ -351,7 +351,7 @@ export default function Standards({ onNavigate }) {
             </div>
           </Struct>
 
-          <Struct num="§3" title="Market Analysis" cond>
+          <Struct num="S3" title="Market Analysis" cond>
             <ul className="b-list">
               <li><strong>3.1</strong> Primary Market Area Definition (geographic, demographic, economic delineation)</li>
               <li><strong>3.2</strong> Supply Analysis (existing stock, pipeline, competitive inventory)</li>
@@ -365,7 +365,7 @@ export default function Standards({ onNavigate }) {
             </div>
           </Struct>
 
-          <Struct num="§4" title="Financial Analysis" cond>
+          <Struct num="S4" title="Financial Analysis" cond>
             <ul className="b-list">
               <li><strong>4.1</strong> Revenue / Income Projections</li>
               <li><strong>4.2</strong> Cost Build-Up (hard costs, soft costs, financing)</li>
@@ -379,7 +379,7 @@ export default function Standards({ onNavigate }) {
             </div>
           </Struct>
 
-          <Struct num="§5" title="Findings & Recommendation">
+          <Struct num="S5" title="Findings & Recommendation">
             <ul className="b-list">
               <li><strong>5.1</strong> Summary of Evidence</li>
               <li><strong>5.2</strong> Risk Register (minimum 5 risks; each scored Likelihood × Impact on a 1–5 scale)</li>
@@ -388,7 +388,7 @@ export default function Standards({ onNavigate }) {
             </ul>
           </Struct>
 
-          <Struct num="§6" title="Implementation Roadmap" cond>
+          <Struct num="S6" title="Implementation Roadmap" cond>
             <ul className="b-list">
               <li>Phasing plan with milestones</li>
               <li>Key dependencies and critical path</li>
@@ -397,7 +397,7 @@ export default function Standards({ onNavigate }) {
             </ul>
           </Struct>
 
-          <Struct num="§7" title="Highest & Best Use Determination" cond>
+          <Struct num="S7" title="Highest & Best Use Determination" cond>
             <div className="pb-body"><p>Must address all four HBU tests:</p></div>
             <ul className="b-list num">
               <li>Legally permissible (zoning, permits, restrictions)</li>
@@ -411,7 +411,7 @@ export default function Standards({ onNavigate }) {
             </div>
           </Struct>
 
-          <Struct num="§8" title="Disclaimers, Limitations & Sign-Off">
+          <Struct num="S8" title="Disclaimers, Limitations & Sign-Off">
             <div className="pb-body"><p>Uses the mandatory disclaimer block set out in Section 05 of this standard.</p></div>
           </Struct>
         </div>
