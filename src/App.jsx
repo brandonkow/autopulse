@@ -477,7 +477,7 @@ function DashboardView({ onNav }) {
           <Card style={{ background: "rgba(184,150,46,0.03)", border: "0.5px solid rgba(184,150,46,0.2)" }}>
             <div style={{ padding: "16px 20px" }}>
               <div style={{ fontSize: 11, color: "#B8962E", fontWeight: 500, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 10, fontFamily: "'DM Sans', sans-serif" }}>AI Role Boundary</div>
-              {["Zoning & regulatory interpretation", "Physical site condition", "HBU legal permissibility (§7.1)", "Stakeholder / political risk"].map((item, i) => (
+              {["Zoning & regulatory interpretation", "Physical site condition", "HBU legal permissibility (S7.1)", "Stakeholder / political risk"].map((item, i) => (
                 <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, fontSize: 12, color: "#6b7280", fontFamily: "'DM Sans', sans-serif" }}>
                   <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#f59e0b", flexShrink: 0 }} />
                   {item}
@@ -705,7 +705,7 @@ function BuilderView() {
                     {[
                       { code: "G-SCOPE-01", label: "No certified value language", ok: true },
                       { code: "G-PROC-01", label: "Dual sign-off", ok: form.lead && form.reviewer && form.lead.toLowerCase() !== form.reviewer.toLowerCase() },
-                      { code: "G-AI-01", label: "AI disclosure in §8", ok: !!form.type },
+                      { code: "G-AI-01", label: "AI disclosure in S8", ok: !!form.type },
                       { code: "G-EVID-01", label: "All claims will be sourced", ok: !!form.context },
                       { code: "G-DISC-01", label: "COI disclosure present", ok: !!form.type },
                       { code: "G-EVID-03", label: "FLS labels applied", ok: !!form.type },
@@ -749,7 +749,7 @@ function BuilderView() {
                   <CardHeader title="AI role boundaries" icon="⚑" />
                   <div style={{ padding: "14px 16px" }}>
                     <div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 10, fontFamily: "'DM Sans', sans-serif" }}>Human review mandatory before release (G-AI-02):</div>
-                    {["Zoning & regulatory interpretation", "Physical site condition assessment", "HBU legal permissibility (§7.1)", "Stakeholder / political risk", "Risk Register final scoring"].map((item, i) => (
+                    {["Zoning & regulatory interpretation", "Physical site condition assessment", "HBU legal permissibility (S7.1)", "Stakeholder / political risk", "Risk Register final scoring"].map((item, i) => (
                       <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, fontSize: 12, color: "#6b7280", fontFamily: "'DM Sans', sans-serif" }}>
                         <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#f59e0b", flexShrink: 0 }} />
                         {item}
@@ -794,9 +794,9 @@ function BuilderView() {
                     </div>
                   </div>
 
-                  {/* §2 Executive Summary */}
+                  {/* S2 Executive Summary */}
                   <div style={{ borderBottom: "0.5px solid #f3f4f6", paddingBottom: 6, marginBottom: 14 }}>
-                    <h3 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 16, fontWeight: 500, color: "#111827", margin: 0 }}>§2 — Executive summary</h3>
+                    <h3 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 16, fontWeight: 500, color: "#111827", margin: 0 }}>S2 — Executive summary</h3>
                   </div>
                   <p style={{ fontSize: 13, color: "#374151", lineHeight: 1.75, marginBottom: 16, fontFamily: "'DM Sans', sans-serif" }}>
                     This report provides a development feasibility opinion for a proposed mixed-use residential and retail development on Lot 4892, Jalan Hang Tuah, Melaka. The subject site extends approximately 2.1 acres and is currently vacant, with approved commercial and residential zoning under the Melaka Structure Plan 2035.
@@ -817,9 +817,9 @@ function BuilderView() {
                     <strong style={{ color: "#92701A" }}>Primary recommendation:</strong> Proceed — <em>Conditional Go</em> subject to satisfactory Heritage Impact Assessment and lender confirmation of construction finance at ≤5.5% p.a.
                   </div>
 
-                  {/* §4 Financial Summary */}
+                  {/* S4 Financial Summary */}
                   <div style={{ borderBottom: "0.5px solid #f3f4f6", paddingBottom: 6, marginBottom: 14, marginTop: 28 }}>
-                    <h3 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 16, fontWeight: 500, color: "#111827", margin: 0 }}>§4 — Financial analysis (summary)</h3>
+                    <h3 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 16, fontWeight: 500, color: "#111827", margin: 0 }}>S4 — Financial analysis (summary)</h3>
                   </div>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 20 }}>
                     {[
@@ -838,12 +838,12 @@ function BuilderView() {
                     ))}
                   </div>
                   <div style={{ padding: "10px 14px", background: "#fffbeb", border: "0.5px solid #fde68a", borderRadius: 8, fontSize: 11, color: "#92400e", fontFamily: "'DM Sans', sans-serif", marginBottom: 20 }}>
-                    ⚑ Forward-looking statement: The figures above are projections based on assumptions in the Key Assumptions Register (§4.5). Actual outcomes may differ materially. This is not a certified valuation (G-EVID-03, G-SCOPE-01 compliant).
+                    ⚑ Forward-looking statement: The figures above are projections based on assumptions in the Key Assumptions Register (S4.5). Actual outcomes may differ materially. This is not a certified valuation (G-EVID-03, G-SCOPE-01 compliant).
                   </div>
 
-                  {/* §5 Risk Register */}
+                  {/* S5 Risk Register */}
                   <div style={{ borderBottom: "0.5px solid #f3f4f6", paddingBottom: 6, marginBottom: 14 }}>
-                    <h3 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 16, fontWeight: 500, color: "#111827", margin: 0 }}>§5.2 — Risk register</h3>
+                    <h3 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 16, fontWeight: 500, color: "#111827", margin: 0 }}>S5.2 — Risk register</h3>
                   </div>
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, marginBottom: 24, fontFamily: "'DM Sans', sans-serif" }}>
                     <thead>
@@ -870,9 +870,9 @@ function BuilderView() {
                     </tbody>
                   </table>
 
-                  {/* §8 AI Disclosure */}
+                  {/* S8 AI Disclosure */}
                   <div style={{ borderBottom: "0.5px solid #f3f4f6", paddingBottom: 6, marginBottom: 14 }}>
-                    <h3 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 16, fontWeight: 500, color: "#111827", margin: 0 }}>§8 — Disclaimer & AI disclosure</h3>
+                    <h3 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 16, fontWeight: 500, color: "#111827", margin: 0 }}>S8 — Disclaimer & AI disclosure</h3>
                   </div>
                   <div style={{ padding: "14px 18px", background: "rgba(184,150,46,0.04)", border: "0.5px solid rgba(184,150,46,0.2)", borderRadius: 10, marginBottom: 14 }}>
                     <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
@@ -1128,7 +1128,7 @@ function SkillConfigView() {
                       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>
                         {t.sections.map(s => {
                           const sec = ALL_SECTIONS.find(x => x.num === s);
-                          return <Badge key={s} text={`§${s} ${sec?.name}`} variant="neutral" />;
+                          return <Badge key={s} text={`S${s} ${sec?.name}`} variant="neutral" />;
                         })}
                       </div>
                     </div>
