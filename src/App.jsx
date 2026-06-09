@@ -604,7 +604,7 @@ function CommandCenter({open,onClose,onNavigate,current}){
           ))}
           {results.length===0&&(
             <div style={{padding:"28px 16px",textAlign:"center",fontSize:13,color:INK_M}}>
-              No matching destination. Try “risk”, “sample”, or “standard”.
+              No matching destination. Try "risk", "sample", or "standard".
             </div>
           )}
         </div>
@@ -1119,15 +1119,15 @@ function ReportCard({t,onDL,downloading,idx,isFav,onToggleFav}){
 
 // ── DASHBOARD ─────────────────────────────────────────────────────────────────
 function Dashboard({onTool,onNavigate,favorites,onToggleFavorite,recentPages}){
-  const[toast,setToast]=useState(null),[dlg,setDlg]=useState(null),[query,setQuery]=useState(“”);
-  const[sortBy,setSortBy]=useState(“default”);
+  const[toast,setToast]=useState(null),[dlg,setDlg]=useState(null),[query,setQuery]=useState("");
+  const[sortBy,setSortBy]=useState("default");
 
   const getFiltered=()=>{
     let list=MER_TYPES.filter(t=>`${t.code} ${t.type} ${t.tag} ${t.desc}`.toLowerCase().includes(query.toLowerCase()));
-    if(sortBy===”pages-asc”)list=[...list].sort((a,b)=>parseInt(a.pages)-parseInt(b.pages));
-    else if(sortBy===”pages-desc”)list=[...list].sort((a,b)=>parseInt(b.pages)-parseInt(a.pages));
-    else if(sortBy===”code”)list=[...list].sort((a,b)=>a.code.localeCompare(b.code));
-    else if(sortBy===”fav”){
+    if(sortBy==="pages-asc")list=[...list].sort((a,b)=>parseInt(a.pages)-parseInt(b.pages));
+    else if(sortBy==="pages-desc")list=[...list].sort((a,b)=>parseInt(b.pages)-parseInt(a.pages));
+    else if(sortBy==="code")list=[...list].sort((a,b)=>a.code.localeCompare(b.code));
+    else if(sortBy==="fav"){
       list=[...list].sort((a,b)=>{
         const af=favorites.includes(a.code)?1:0,bf=favorites.includes(b.code)?1:0;
         return bf-af;
@@ -1140,17 +1140,17 @@ function Dashboard({onTool,onNavigate,favorites,onToggleFavorite,recentPages}){
   const dl=(t)=>{
     setDlg(t.code);
     const content=[
-      “MERIDIAN RE ADVISORY”,
+      "MERIDIAN RE ADVISORY",
       `${t.code} — ${t.type}`,
-      “”,
+      "",
       `Typical length: ${t.pages} pages`,
-      `Included sections: ${t.sections.map(n=>`§${n}`).join(“, “)}`,
-      “”,
+      `Included sections: ${t.sections.map(n=>`§${n}`).join(", ")}`,
+      "",
       t.desc,
-      “”,
-      “MANDATORY RELEASE CONTROLS”,
-      ...G_CHECKS.map((x,i)=>`[ ] ${String(i+1).padStart(2,”0”)} ${x}`),
-    ].join(“\n”);
+      "",
+      "MANDATORY RELEASE CONTROLS",
+      ...G_CHECKS.map((x,i)=>`[ ] ${String(i+1).padStart(2,"0")} ${x}`),
+    ].join("\n");
     setTimeout(()=>{
       downloadText(`${t.code}-template.txt`,content);
       setDlg(null);setToast(`${t.code} template downloaded`);
@@ -1158,59 +1158,59 @@ function Dashboard({onTool,onNavigate,favorites,onToggleFavorite,recentPages}){
   };
 
   const recentRoutes=recentPages
-    .filter(id=>ROUTES.some(r=>r.id===id)&&id!==”dashboard”&&id!==”landing”)
+    .filter(id=>ROUTES.some(r=>r.id===id)&&id!=="dashboard"&&id!=="landing")
     .slice(0,4)
     .map(id=>ROUTES.find(r=>r.id===id));
 
   return(
-    <div style={{background:BG,minHeight:”100vh”}}>
+    <div style={{background:BG,minHeight:"100vh"}}>
       <div style={{height:60}}/>
-      <div style={{background:SURFACE,borderBottom:`1px solid ${BORDER}`,padding:”22px 32px”,
-        display:”flex”,alignItems:”center”,justifyContent:”space-between”,flexWrap:”wrap”,gap:16}}>
+      <div style={{background:SURFACE,borderBottom:`1px solid ${BORDER}`,padding:"22px 32px",
+        display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:16}}>
         <div>
-          <div style={{fontFamily:”'IBM Plex Mono',monospace”,fontSize:9.5,color:GOLD,
-            textTransform:”uppercase”,letterSpacing:”2px”,marginBottom:6}}>MERIDIAN · REPORT LIBRARY</div>
-          <h1 style={{fontFamily:”'Cormorant Garamond',serif”,fontSize:32,fontWeight:700,
-            color:INK,margin:”0 0 4px”,lineHeight:1.1}}>Report Template Library</h1>
-          <p style={{fontFamily:”'Inter',sans-serif”,fontSize:13,color:INK_S,margin:0}}>
+          <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9.5,color:GOLD,
+            textTransform:"uppercase",letterSpacing:"2px",marginBottom:6}}>MERIDIAN · REPORT LIBRARY</div>
+          <h1 style={{fontFamily:"'Cormorant Garamond',serif",fontSize:32,fontWeight:700,
+            color:INK,margin:"0 0 4px",lineHeight:1.1}}>Report Template Library</h1>
+          <p style={{fontFamily:"'Inter',sans-serif",fontSize:13,color:INK_S,margin:0}}>
             Seven MER advisory report families — MAS-GUARD-001 compliant
-            {favorites.length>0&&<span style={{marginLeft:10,fontFamily:”'IBM Plex Mono',monospace”,
+            {favorites.length>0&&<span style={{marginLeft:10,fontFamily:"'IBM Plex Mono',monospace",
               fontSize:10,color:GOLD_B,background:GOLD_DIM,border:`1px solid rgba(168,121,40,.2)`,
-              padding:”2px 7px”,borderRadius:2}}>★ {favorites.length} starred</span>}
+              padding:"2px 7px",borderRadius:2}}>★ {favorites.length} starred</span>}
           </p>
         </div>
-        <div style={{display:”flex”,gap:8,flexWrap:”wrap”,alignItems:”center”}}>
+        <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
           <input value={query} onChange={e=>setQuery(e.target.value)}
-            placeholder=”Find a report family...”
-            aria-label=”Find a report family”
-            style={{fontFamily:”'Inter',sans-serif”,fontSize:12,background:SURFACE,
-              border:`1px solid ${BORDER}`,color:INK,borderRadius:2,padding:”9px 12px”,minWidth:200}}/>
+            placeholder="Find a report family..."
+            aria-label="Find a report family"
+            style={{fontFamily:"'Inter',sans-serif",fontSize:12,background:SURFACE,
+              border:`1px solid ${BORDER}`,color:INK,borderRadius:2,padding:"9px 12px",minWidth:200}}/>
           <select value={sortBy} onChange={e=>setSortBy(e.target.value)}
-            aria-label=”Sort report families”
-            style={{fontFamily:”'Inter',sans-serif”,fontSize:12,background:SURFACE,
-              border:`1px solid ${BORDER}`,color:INK_S,borderRadius:2,padding:”9px 10px”,cursor:”pointer”}}>
-            <option value=”default”>Default order</option>
-            <option value=”fav”>★ Starred first</option>
-            <option value=”pages-asc”>Pages: low → high</option>
-            <option value=”pages-desc”>Pages: high → low</option>
-            <option value=”code”>Code A → Z</option>
+            aria-label="Sort report families"
+            style={{fontFamily:"'Inter',sans-serif",fontSize:12,background:SURFACE,
+              border:`1px solid ${BORDER}`,color:INK_S,borderRadius:2,padding:"9px 10px",cursor:"pointer"}}>
+            <option value="default">Default order</option>
+            <option value="fav">★ Starred first</option>
+            <option value="pages-asc">Pages: low → high</option>
+            <option value="pages-desc">Pages: high → low</option>
+            <option value="code">Code A → Z</option>
           </select>
-          <button onClick={()=>onTool(“checker”)} className=”btn-outline”
-            style={{fontFamily:”'Inter',sans-serif”,fontSize:12,color:INK_S,
-              border:`1px solid ${BORDER}`,background:”transparent”,
-              padding:”9px 14px”,borderRadius:2,cursor:”pointer”,fontWeight:500}}>
+          <button onClick={()=>onTool("checker")} className="btn-outline"
+            style={{fontFamily:"'Inter',sans-serif",fontSize:12,color:INK_S,
+              border:`1px solid ${BORDER}`,background:"transparent",
+              padding:"9px 14px",borderRadius:2,cursor:"pointer",fontWeight:500}}>
             Checklist
           </button>
-          <button onClick={()=>onTool(“risk”)} className=”btn-outline”
-            style={{fontFamily:”'Inter',sans-serif”,fontSize:12,color:INK_S,
-              border:`1px solid ${BORDER}`,background:”transparent”,
-              padding:”9px 14px”,borderRadius:2,cursor:”pointer”,fontWeight:500}}>
+          <button onClick={()=>onTool("risk")} className="btn-outline"
+            style={{fontFamily:"'Inter',sans-serif",fontSize:12,color:INK_S,
+              border:`1px solid ${BORDER}`,background:"transparent",
+              padding:"9px 14px",borderRadius:2,cursor:"pointer",fontWeight:500}}>
             Risk
           </button>
-          <button onClick={()=>onTool(“fee”)} className=”btn-outline”
-            style={{fontFamily:”'Inter',sans-serif”,fontSize:12,color:INK_S,
-              border:`1px solid ${BORDER}`,background:”transparent”,
-              padding:”9px 14px”,borderRadius:2,cursor:”pointer”,fontWeight:500}}>
+          <button onClick={()=>onTool("fee")} className="btn-outline"
+            style={{fontFamily:"'Inter',sans-serif",fontSize:12,color:INK_S,
+              border:`1px solid ${BORDER}`,background:"transparent",
+              padding:"9px 14px",borderRadius:2,cursor:"pointer",fontWeight:500}}>
             Fee Calc
           </button>
         </div>
@@ -1218,14 +1218,14 @@ function Dashboard({onTool,onNavigate,favorites,onToggleFavorite,recentPages}){
 
       {recentRoutes.length>0&&(
         <div style={{background:SURFACE_S,borderBottom:`1px solid ${BORDER}`,
-          padding:”14px 32px”,display:”flex”,alignItems:”center”,gap:12,flexWrap:”wrap”}}>
-          <span style={{fontFamily:”'IBM Plex Mono',monospace”,fontSize:9,color:INK_M,
-            textTransform:”uppercase”,letterSpacing:”1.5px”,flexShrink:0}}>Recently visited</span>
+          padding:"14px 32px",display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+          <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9,color:INK_M,
+            textTransform:"uppercase",letterSpacing:"1.5px",flexShrink:0}}>Recently visited</span>
           {recentRoutes.map(r=>(
             <button key={r.id} onClick={()=>onNavigate(r.id)}
-              style={{fontFamily:”'Inter',sans-serif”,fontSize:11,color:INK_S,
-                background:SURFACE,border:`1px solid ${BORDER}`,padding:”5px 12px”,
-                borderRadius:2,cursor:”pointer”,transition:”border-color .15s,color .15s”}}
+              style={{fontFamily:"'Inter',sans-serif",fontSize:11,color:INK_S,
+                background:SURFACE,border:`1px solid ${BORDER}`,padding:"5px 12px",
+                borderRadius:2,cursor:"pointer",transition:"border-color .15s,color .15s"}}
               onMouseEnter={e=>{e.currentTarget.style.borderColor=GOLD;e.currentTarget.style.color=GOLD;}}
               onMouseLeave={e=>{e.currentTarget.style.borderColor=BORDER;e.currentTarget.style.color=INK_S;}}>
               {r.label}
@@ -1234,50 +1234,50 @@ function Dashboard({onTool,onNavigate,favorites,onToggleFavorite,recentPages}){
         </div>
       )}
 
-      <div style={{maxWidth:1400,margin:”0 auto”,padding:”30px 32px 0”}}>
-        <SectionLabel num=”START” label=”Advisory Knowledge System”/>
-        <div className=”route-grid”>
-          {ROUTES.filter(r=>[“framework”,”playbook”,”standards”,”sample”].includes(r.id)).map(r=>(
-            <button key={r.id} className=”route-card” onClick={()=>onNavigate(r.id)}>
-              <span style={{fontFamily:”'IBM Plex Mono',monospace”,fontSize:9,color:GOLD,
-                letterSpacing:”1.5px”,textTransform:”uppercase”,display:”block”,marginBottom:10}}>{r.eyebrow}</span>
-              <span style={{fontFamily:”'Cormorant Garamond',serif”,fontSize:20,fontWeight:700,
-                color:INK,display:”block”,marginBottom:6}}>{r.label}</span>
-              <span style={{fontSize:11.5,lineHeight:1.55,color:INK_S,display:”block”}}>{r.desc}</span>
+      <div style={{maxWidth:1400,margin:"0 auto",padding:"30px 32px 0"}}>
+        <SectionLabel num="START" label="Advisory Knowledge System"/>
+        <div className="route-grid">
+          {ROUTES.filter(r=>["framework","playbook","standards","sample"].includes(r.id)).map(r=>(
+            <button key={r.id} className="route-card" onClick={()=>onNavigate(r.id)}>
+              <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:9,color:GOLD,
+                letterSpacing:"1.5px",textTransform:"uppercase",display:"block",marginBottom:10}}>{r.eyebrow}</span>
+              <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:20,fontWeight:700,
+                color:INK,display:"block",marginBottom:6}}>{r.label}</span>
+              <span style={{fontSize:11.5,lineHeight:1.55,color:INK_S,display:"block"}}>{r.desc}</span>
             </button>
           ))}
         </div>
       </div>
 
-      {favorites.length>0&&query===””&&sortBy===”default”&&(
-        <div style={{maxWidth:1400,margin:”0 auto”,padding:”28px 32px 0”}}>
-          <SectionLabel num=”★” label=”Starred Reports”/>
-          <div style={{display:”grid”,gridTemplateColumns:”repeat(auto-fill,minmax(340px,1fr))”,gap:18}}>
+      {favorites.length>0&&query===""&&sortBy==="default"&&(
+        <div style={{maxWidth:1400,margin:"0 auto",padding:"28px 32px 0"}}>
+          <SectionLabel num="★" label="Starred Reports"/>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(340px,1fr))",gap:18}}>
             {MER_TYPES.filter(t=>favorites.includes(t.code)).map((t,i)=>(
               <ReportCard key={t.code} t={t} onDL={dl} downloading={dlg} idx={i}
                 isFav={true} onToggleFav={onToggleFavorite}/>
             ))}
           </div>
-          <div style={{borderBottom:`1px solid ${BORDER_L}`,margin:”28px 0 0”}}/>
+          <div style={{borderBottom:`1px solid ${BORDER_L}`,margin:"28px 0 0"}}/>
         </div>
       )}
 
-      <div style={{maxWidth:1400,margin:”0 auto”,padding:”28px 32px 40px”,
-        display:”grid”,gridTemplateColumns:”repeat(auto-fill,minmax(340px,1fr))”,gap:18}}>
+      <div style={{maxWidth:1400,margin:"0 auto",padding:"28px 32px 40px",
+        display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(340px,1fr))",gap:18}}>
         {filtered.map((t,i)=>(
           <ReportCard key={t.code} t={t} onDL={dl} downloading={dlg} idx={i}
             isFav={favorites.includes(t.code)} onToggleFav={onToggleFavorite}/>
         ))}
         {filtered.length===0&&(
-          <div style={{gridColumn:”1/-1”,padding:”44px”,border:`1px dashed ${BORDER}`,
-            borderRadius:3,textAlign:”center”}}>
-            <div style={{fontSize:13,color:INK_M,marginBottom:12}}>No report families match “{query}”.</div>
-            <div style={{display:”flex”,gap:8,justifyContent:”center”,flexWrap:”wrap”}}>
-              {[“Market”,”Investment”,”Feasibility”].map(s=>(
+          <div style={{gridColumn:"1/-1",padding:"44px",border:`1px dashed ${BORDER}`,
+            borderRadius:3,textAlign:"center"}}>
+            <div style={{fontSize:13,color:INK_M,marginBottom:12}}>No report families match "{query}".</div>
+            <div style={{display:"flex",gap:8,justifyContent:"center",flexWrap:"wrap"}}>
+              {["Market","Investment","Feasibility"].map(s=>(
                 <button key={s} onClick={()=>setQuery(s)}
-                  style={{fontFamily:”'Inter',sans-serif”,fontSize:11,color:GOLD,
+                  style={{fontFamily:"'Inter',sans-serif",fontSize:11,color:GOLD,
                     background:GOLD_DIM,border:`1px solid rgba(168,121,40,.2)`,
-                    padding:”5px 12px”,borderRadius:2,cursor:”pointer”}}>Try “{s}”</button>
+                    padding:"5px 12px",borderRadius:2,cursor:"pointer"}}>Try "{s}"</button>
               ))}
             </div>
           </div>
